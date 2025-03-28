@@ -1,0 +1,27 @@
+# Node dependencies
+backend/node_modules/
+
+# Uploaded receipt images
+backend/uploads/
+
+# Expense data file
+backend/data.json
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
+
+# Optional: Operating System files
+.DS_Store
+Thumbs.db

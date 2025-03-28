@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Expense Tracker</h1>
+
+    <section id="add-expense">
+        <h2>Add New Expense</h2>
+        <form id="expense-form">
+            <div class="form-group">
+                <label for="type">Type:</label>
+                <input type="text" id="type" name="type" required>
+            </div>
+            <div class="form-group">
+                <label for="date">Date:</label>
+                <input type="date" id="date" name="date" required>
+            </div>
+            <div class="form-group">
+                <label for="location">Location:</label>
+                <input type="text" id="location" name="location">
+            </div>
+            <div class="form-group">
+                <label for="cost">Cost:</label>
+                <input type="number" id="cost" name="cost" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="comments">Comments:</label>
+                <textarea id="comments" name="comments" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="receipt">Receipt Photo:</label>
+                <input type="file" id="receipt" name="receipt" accept="image/*">
+            </div>
+            <button type="submit">Add Expense</button>
+        </form>
+    </section>
+
+    <section id="expense-list-section">
+        <h2>Expenses</h2>
+        <ul id="expense-list">
+            <!-- Expense items will be added here by JavaScript -->
+            <li>No expenses yet.</li>
+        </ul>
+    </section>
+
+    <section id="export-section">
+        <h2>Export</h2>
+        <button id="export-button">Export to Excel</button>
+    </section>
+
+    <script src="script.js"></script> <!-- We'll create this next -->
+</body>
+</html>
