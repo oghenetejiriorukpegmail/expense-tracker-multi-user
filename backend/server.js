@@ -4,6 +4,11 @@ const fs = require('fs'); // File system module
 const multer = require('multer'); // Middleware for handling file uploads
 const Tesseract = require('tesseract.js'); // OCR library
 const XLSX = require('xlsx'); // Excel library
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js'); // PDF processing
+const { createCanvas } = require('canvas'); // For rendering PDF page to image
+
+// Required for pdfjs-dist node usage
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,6 +55,32 @@ const writeData = (data) => {
     }
 };
 
+// --- PDF to Image Buffer Helper ---
+async function pdfToImageBuffer(pdfPath) {
+    const data = new Uint8Array(fs.readFileSync(pdfPath));
+    const pdfDocument = await pdfjsLib.getDocument({ data }).promise;
+    const page = await pdfDocument.getPage(1); // Get the first page
+
+    // Set scale for rendering quality
+    const scale = 1.5;
+    const viewport = page.getViewport({ scale });
+
+    // Prepare canvas using 'canvas' package
+    const canvas = createCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext('2d');
+
+    // Render PDF page into canvas context
+    const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+    };
+    await page.render(renderContext).promise;
+
+    // Return image buffer (PNG format)
+    return canvas.toBuffer('image/png');
+}
+
+
 // --- OCR Helper Functions (Basic Parsing) ---
 const findDateInText = (text) => {
     const dateRegex = /(\d{4}-\d{2}-\d{2})|(\d{1,2}\/\d{1,2}\/\d{2,4})|(\d{1,2}\.\d{1,2}\.\d{2,4})/;
@@ -60,22 +91,21 @@ const findDateInText = (text) => {
             const parts = dateStr.split(/[-\/.]/);
             if (parts.length === 3) {
                 let year = parts[2], month = parts[0], day = parts[1];
-                 if (parts[0].length === 4) {
+                 if (parts[0].length === 4) { // YYYY-MM-DD
                     year = parts[0]; month = parts[1]; day = parts[2];
-                 } else if (parts[2].length === 2) {
+                 } else if (parts[2].length === 2) { // Handle YY
                      year = parseInt(parts[2]) < 70 ? '20' + parts[2] : '19' + parts[2];
                  } else if (parts[2].length === 4) {
                      year = parts[2];
                  }
                  month = month.padStart(2, '0');
                  day = day.padStart(2, '0');
-                 // Basic validation for parsed date parts
                  if (parseInt(month) > 0 && parseInt(month) <= 12 && parseInt(day) > 0 && parseInt(day) <= 31) {
                     return `${year}-${month}-${day}`;
                  }
             }
         } catch (e) { console.error("Date parsing error:", e); }
-        return dateStr; // Return original match if parsing/validation fails
+        return dateStr;
     }
     return null;
 };
@@ -131,17 +161,49 @@ app.post('/api/expenses', upload.single('receipt'), async (req, res) => {
         let ocrAttempted = false;
         let ocrFoundDate = null;
         let ocrFoundCost = null;
+        let ocrInput = null; // Will hold file path or image buffer
 
+        // --- Prepare Input for OCR (Image or PDF) ---
         if (req.file) {
             ocrAttempted = true;
-            console.log(`Attempting OCR on ${req.file.path}...`);
+            console.log(`Processing uploaded file: ${req.file.path} (Type: ${req.file.mimetype})`);
+
+            if (req.file.mimetype === 'application/pdf') {
+                console.log('PDF detected, converting first page to image for OCR...');
+                try {
+                    ocrInput = await pdfToImageBuffer(req.file.path);
+                    console.log('PDF page converted to image buffer.');
+                } catch (pdfError) {
+                    console.error("PDF processing failed:", pdfError);
+                    // Proceed without OCR if PDF conversion fails
+                    ocrInput = null;
+                    ocrAttempted = false; // Mark OCR as not attempted if conversion failed
+                }
+            } else if (req.file.mimetype.startsWith('image/')) {
+                // For images, use the file path directly
+                ocrInput = req.file.path;
+            } else {
+                console.log(`Unsupported file type for OCR: ${req.file.mimetype}`);
+                ocrAttempted = false; // Cannot attempt OCR on unsupported types
+            }
+        }
+        // --- End Prepare Input ---
+
+
+        // --- OCR Processing ---
+        if (ocrAttempted && ocrInput) {
+            console.log(`Attempting OCR...`);
             try {
                 const { data: { text } } = await Tesseract.recognize(
-                    req.file.path, 'eng', { logger: m => console.log(m) }
+                    ocrInput, // Use path for images, buffer for converted PDFs
+                    'eng',
+                    { logger: m => console.log(m) }
                 );
                 console.log("OCR Result Text:\n", text);
+
                 ocrFoundDate = findDateInText(text);
                 ocrFoundCost = findCostInText(text);
+
                 if (ocrFoundDate) {
                     console.log(`OCR found date: ${ocrFoundDate}, overriding manual entry: ${date}`);
                     date = ocrFoundDate;
@@ -152,8 +214,11 @@ app.post('/api/expenses', upload.single('receipt'), async (req, res) => {
                 }
             } catch (ocrError) {
                 console.error("OCR processing failed:", ocrError);
+                // Don't fail the request, just proceed without OCR data
             }
         }
+        // --- End OCR Processing ---
+
 
         const expenses = readData();
         const newExpense = {
@@ -163,7 +228,8 @@ app.post('/api/expenses', upload.single('receipt'), async (req, res) => {
         };
 
         if (!newExpense.type || !newExpense.date || isNaN(newExpense.cost)) {
-             if (req.file) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error deleting file after failed validation:", err);}); }
+             // Don't delete the original PDF/Image if validation fails after OCR attempt
+             // as the user might want to retry manually. Only delete if server error occurs later.
              return res.status(400).json({ message: 'Missing required fields (type, date, cost) after potential OCR.' });
         }
 
@@ -174,7 +240,10 @@ app.post('/api/expenses', upload.single('receipt'), async (req, res) => {
 
     } catch (error) {
         console.error('Error adding expense:', error);
-         if (req.file && req.file.path) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error deleting file after server error:", err);}); }
+         // Clean up uploaded file if a server error occurred
+         if (req.file && req.file.path) {
+             fs.unlink(req.file.path, (err) => { if (err) console.error("Error deleting file after server error:", err);});
+         }
         res.status(500).json({ message: 'Failed to add expense due to server error.' });
     }
 });
@@ -184,41 +253,24 @@ app.get('/api/expenses/export', (req, res) => {
     console.log('GET /api/expenses/export hit');
     try {
         const expenses = readData();
-
-        // Prepare data for worksheet: Array of arrays
         const dataForSheet = [
-            ['Type', 'Date', 'Location', 'Cost', 'Comments', 'Receipt Path'] // Header row
+            ['Type', 'Date', 'Location', 'Cost', 'Comments', 'Receipt Path']
         ];
-
         expenses.forEach(exp => {
             dataForSheet.push([
-                exp.type,
-                exp.date,
-                exp.location || '', // Handle potentially missing location
-                exp.cost,
-                exp.comments || '', // Handle potentially missing comments
-                exp.receiptPath || '' // Handle potentially missing receipt path
+                exp.type, exp.date, exp.location || '', exp.cost,
+                exp.comments || '', exp.receiptPath || ''
             ]);
         });
-
-        // Create workbook and worksheet
         const ws = XLSX.utils.aoa_to_sheet(dataForSheet);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Expenses'); // Sheet name 'Expenses'
-
-        // Generate Excel file buffer
-        // 'bookSST: true' helps with compatibility for strings
+        XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
         const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer', bookSST: true });
-
-        // Set response headers for file download
-        const filename = `expenses_${new Date().toISOString().split('T')[0]}.xlsx`; // e.g., expenses_2025-03-28.xlsx
+        const filename = `expenses_${new Date().toISOString().split('T')[0]}.xlsx`;
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-
-        // Send the buffer
         res.send(excelBuffer);
         console.log(`Generated and sent ${filename}`);
-
     } catch (error) {
         console.error('Error generating Excel export:', error);
         res.status(500).send('Error generating Excel file.');
