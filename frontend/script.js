@@ -583,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (result.type || result.date || result.cost) {
                 // Show the edit step with the extracted data
-                showEditStep(result.extractedData); // Use extractedData object
+                showEditStep(result); // Pass the result object directly
                 showToast('Receipt processed successfully! Please review the extracted information.');
             } else {
                 // Show the edit step with empty fields
