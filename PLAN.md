@@ -175,9 +175,10 @@ graph TD
 * **Code Refactoring:**
   * Improve code organization with proper MVC structure
   * Implement consistent error handling
-  * Add comprehensive logging
-
-* **Testing:**
+  *   Add comprehensive logging
+  *   **Address known vulnerabilities:** The `xlsx` package currently has a high-severity vulnerability (Prototype Pollution / ReDoS) with no available fix. Plan to monitor for updates or migrate to an alternative library (e.g., `exceljs`) in the future.
+  
+  * **Testing:**
   * Add unit tests for backend functions
   * Implement integration tests for API endpoints
   * Add end-to-end testing for critical user flows
