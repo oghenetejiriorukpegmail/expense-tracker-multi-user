@@ -156,6 +156,11 @@ section:hover {
     margin-bottom: 1.2em;
 }
 
+/* Increase spacing for API key form groups */
+.provider-settings .form-group {
+    margin-bottom: 2em;
+}
+
 label {
     display: block;
     margin-bottom: 0.5em;
@@ -166,6 +171,7 @@ label {
 input[type="text"],
 input[type="date"],
 input[type="number"],
+input[type="password"],
 input[type="file"],
 textarea,
 select {
@@ -177,6 +183,14 @@ select {
     font-family: inherit;
     font-size: 1em;
     transition: var(--transition);
+}
+
+/* API Key input styling */
+.api-key-input {
+    font-family: monospace;
+    letter-spacing: 0.5px;
+    height: 2.5em;
+    font-size: 1.1em;
 }
 
 input:focus,

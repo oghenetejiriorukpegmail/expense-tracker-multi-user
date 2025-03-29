@@ -1,8 +1,9 @@
-// Import the mock app
 const request = require('supertest');
+
+// Import the mock app
 const app = require('./server.test.mock');
 
-describe('Expense API Endpoints', () => {
+describe('Expense API Endpoints (Mock Server)', () => {
     // Test GET /api/expenses
     it('should fetch all expenses', async () => {
         const res = await request(app).get('/api/expenses');
@@ -80,10 +81,4 @@ describe('Expense API Endpoints', () => {
         const checkRes = await request(app).get('/api/expenses/1');
         expect(checkRes.statusCode).toEqual(404);
     });
-
-    // TODO: Add tests for POST validation errors (missing fields, invalid data)
-    // TODO: Add tests for PUT /api/expenses/:id
-    // TODO: Add tests for DELETE /api/expenses/:id
-    // TODO: Add tests for GET /api/export-expenses
-    // TODO: Add tests for POST /api/test-ocr (mocking Gemini API call)
 });

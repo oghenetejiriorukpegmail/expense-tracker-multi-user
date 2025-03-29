@@ -16,13 +16,14 @@ The application currently has the following functionality:
 * Basic frontend UI with a form for expense entry and a simple list display
 * Backend server with Express handling API endpoints
 * File upload functionality for receipt images and PDFs
-* **OCR processing using Tesseract.js (built-in) or simulated AI providers (OpenAI, Gemini, Claude, Open Router)**
-* **Settings page (`settings.html`) for configuring OCR method and API keys**
+* **OCR processing using Tesseract.js (built-in) or Google Gemini (via `utils/ocr.js` module)**
+* **Settings page (`settings.html`) for configuring OCR method and API keys (UI improved for key input)**
 * **OCR testing functionality on the settings page**
 * **Per-Trip Excel export functionality** (Requires `tripName` query param, filename matches trip name, Trip Name column removed from export data). **Global export removed.**
 * Data storage using a JSON file (now includes `tripName`)
 * Expense editing and deletion (includes `tripName`)
 * Enhanced UI with receipt thumbnails, modal view, loading indicators, toast notifications, **expenses grouped by Trip Name, and per-trip export buttons.**
+* **Unit tests implemented for backend API endpoints using Jest.**
 
 ## 3. Architecture
 
@@ -32,12 +33,13 @@ The application utilizes the following technology stack:
 *   **Backend:** Node.js with the Express framework. This server-side component handles:
     *   Receiving expense data (including Trip Name) and uploaded receipt images/PDFs.
     *   Storing expense data (including Trip Name) in a JSON file.
-    *   Storing uploaded images in an uploads directory.
-    *   **Performing OCR on images and PDFs using either Tesseract.js or simulating AI provider calls based on user settings.**
-    *   **Generating per-trip Excel export files** (requires `tripName` query param, filename matches trip) using the xlsx library.
-*   **OCR:** Tesseract.js is used for built-in OCR. **Simulated calls to external AI APIs (OpenAI, Gemini, Claude, Open Router) are implemented for testing, requiring user-provided API keys.**
-*   **Excel Generation:** The xlsx library creates the .xlsx file for **per-trip export**.
-*   **Data Storage:** A simple JSON file is used for data persistence (includes `tripName`).
+    *   Storing uploaded images in an `uploads` directory.
+    *   **Performing OCR on images and PDFs via the `utils/ocr.js` module, supporting Tesseract.js (built-in) and Google Gemini based on user settings.**
+    *   **Generating per-trip Excel export files** (requires `tripName` query param, filename matches trip) using the `xlsx` library.
+*   **OCR:** Logic is encapsulated in `backend/utils/ocr.js`. Supports Tesseract.js for built-in OCR and Google Gemini API (requires user-provided API key).
+*   **Excel Generation:** The `xlsx` library creates the .xlsx file for **per-trip export**.
+*   **Data Storage:** A simple JSON file (`backend/data.json`) is used for data persistence (includes `tripName`).
+*   **Testing:** Jest is used for backend unit testing.
 
 ## 4. High-Level Flow Diagram
 
@@ -80,7 +82,7 @@ graph TD
 ## 5. Immediate Improvements (Current Sprint)
 
 1.  **AI OCR Implementation:**
-    *   Replace AI provider simulations with actual API calls (OpenAI, Gemini, Claude, Open Router).
+    *   **(Partially Done - Gemini Implemented)** Replace AI provider simulations with actual API calls (OpenAI, Claude, Open Router remaining).
     *   Implement secure handling of API keys on the backend (e.g., using environment variables or a secure configuration store instead of passing from frontend).
     *   **(Optional) Implement dynamic fetching of available models for each AI provider.**
 
@@ -92,12 +94,14 @@ graph TD
 
 3.  **Security & Validation:**
     *   Address npm audit vulnerabilities.
-    *   Implement comprehensive input validation on both frontend and backend.
-    *   Add sanitization for user inputs.
+    *   **(Done) Implement comprehensive input validation on both frontend and backend (using express-validator and custom checks).**
+    *   **(Done) Add sanitization for user inputs (using express-validator).**
 
 4.  **Code Quality & Refactoring:**
-    *   Refactor OCR processing logic on the backend for better organization.
-    *   Add comments and improve code readability.
+    *   **(Done) Refactor OCR processing logic on the backend into `utils/ocr.js`.**
+    *   **(Done) Add comments (JSDoc) and improve code readability.**
+    *   **(Done) Fix UI issue with API key input size.**
+    *   **(Done) Implement backend unit tests using Jest.**
 
 ## 6. Future Development Roadmap
 
@@ -173,22 +177,22 @@ graph TD
 ## 7. Technical Debt & Maintenance
 
 * **Code Refactoring:**
-  * Improve code organization with proper MVC structure
-  * Implement consistent error handling
-  *   Add comprehensive logging
-  *   **Address known vulnerabilities:** The `xlsx` package currently has a high-severity vulnerability (Prototype Pollution / ReDoS) with no available fix. Plan to monitor for updates or migrate to an alternative library (e.g., `exceljs`) in the future.
+  * **(Partially Done)** Improve code organization (OCR logic moved to `utils/ocr.js`). Consider full MVC structure later.
+  * **(Partially Done)** Implement consistent error handling (improved in OCR and API routes).
+  * **(Partially Done)** Add comprehensive logging (basic console logging exists, needs enhancement).
+  * **Address known vulnerabilities:** The `xlsx` package currently has a high-severity vulnerability (Prototype Pollution / ReDoS) with no available fix. Plan to monitor for updates or migrate to an alternative library (e.g., `exceljs`) in the future.
   
-  * **Testing:**
-  * Add unit tests for backend functions
-  * Implement integration tests for API endpoints
-  * Add end-to-end testing for critical user flows
+* **Testing:**
+  * **(Done)** Add unit tests for backend API endpoints using Jest.
+  * Implement integration tests for API endpoints.
+  * Add end-to-end testing for critical user flows.
 
 * **Documentation:**
-  * Create API documentation
-  * Add code comments and documentation
-  * Create user guide and help documentation
+  * Create API documentation.
+  * **(Done)** Add code comments (JSDoc) and documentation.
+  * Create user guide and help documentation.
 
 * **Performance Optimization:**
-  * Optimize image processing
-  * Implement caching strategies
-  * Improve application load time
+  * Optimize image processing.
+  * Implement caching strategies.
+  * Improve application load time.

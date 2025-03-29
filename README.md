@@ -23,16 +23,17 @@ A web application for tracking expenses with automated receipt scanning via AI O
 ✔ **Multiple OCR Options**
 - Built-in Tesseract.js (no API key needed)
 - Support for AI providers:
-  - OpenAI GPT Vision
-  - Google Gemini
-  - Claude
-  - OpenRouter (multi-provider)
+  - OpenAI GPT Vision (Planned)
+  - Google Gemini (Implemented)
+  - Claude (Planned)
+  - OpenRouter (Planned)
 
 ✔ **User Interface**
 - Responsive mobile-friendly design
 - Receipt thumbnails with zoom
 - Instant notifications
 - Grouped expense listing
+- Improved API Key input fields
 
 ## Installation
 
@@ -50,7 +51,9 @@ A web application for tracking expenses with automated receipt scanning via AI O
 
 3. **Run the server**:
    ```bash
-   node server.js
+   # From the backend directory
+   npm start
+   # Or: node server.js
    ```
 
 4. **Access the app**:
@@ -59,19 +62,20 @@ A web application for tracking expenses with automated receipt scanning via AI O
 ## Configuration
 
 Configure OCR settings via the Settings page (`/settings.html`):
-- Choose OCR provider
-- Enter API keys (for AI services)
-- Select preferred models 
+- Choose OCR provider (Tesseract or Gemini)
+- Enter API keys (required for Gemini)
+- Select preferred models (for Gemini)
 
 ## Technology Stack
 
 - **Frontend**: HTML5, CSS3, JavaScript
 - **Backend**: Node.js, Express
-- **OCR**: 
-  - Tesseract.js (default) 
-  - OpenAI/Gemini/Claude simulations
-- **Data Storage**: JSON file system
+- **OCR**:
+  - Tesseract.js (default, via `utils/ocr.js`)
+  - Google Gemini (via `utils/ocr.js`)
+- **Data Storage**: JSON file system (`backend/data.json`)
 - **Excel Export**: SheetJS/xlsx
+- **Testing**: Jest
 
 ## Future Roadmap
 
