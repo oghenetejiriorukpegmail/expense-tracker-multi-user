@@ -8,15 +8,12 @@ jest.mock('fs');
 
 // Import the actual app instance from the refactored server.js
 const app = require('../server'); // Now this should work
-const Tesseract = require('tesseract.js'); // Import Tesseract to terminate it
+const Tesseract = require('tesseract.js'); // Keep import if needed elsewhere, but remove terminate
 
 describe('Expense API Endpoints', () => {
     let mockExpenses = [];
 
-    // Terminate Tesseract worker after all tests
-    afterAll(async () => {
-        await Tesseract.terminate();
-    });
+    // Removed afterAll block for Tesseract termination
 
     beforeEach(() => {
         // Reset mocks before each test
@@ -42,7 +39,26 @@ describe('Expense API Endpoints', () => {
          });
          // Setup mock implementation for fs.existsSync
          fs.existsSync.mockImplementation((filePath) => {
-             return (filePath === path.join(__dirname, '../data.json') || filePath === 'mock_data.json');
+             // Allow checking for data file and uploads directory
+             return (filePath === path.join(__dirname, '../data.json') || filePath === path.join(__dirname, '../uploads'));
+         });
+         // Mock mkdirSync used by multer setup
+         fs.mkdirSync.mockImplementation((dirPath) => {
+            // console.log(`Mock fs.mkdirSync called for: ${dirPath}`); // Optional logging
+            return undefined; // Simulate successful directory creation/check
+         });
+         // Make writeFileSync less strict for multer's temp files
+         const originalWriteFileSync = fs.writeFileSync; // Keep original if needed? No, mock fully.
+         fs.writeFileSync.mockImplementation((filePath, data) => {
+             const targetPath = path.join(__dirname, '../data.json');
+             // Only intercept writes to the actual data file for testing state
+             if (filePath === targetPath) {
+                 // console.log(`Mock fs.writeFileSync intercepted for data file: ${filePath}`);
+                 mockExpenses = JSON.parse(data);
+             } else {
+                 // Allow other writes (like multer temp files) to proceed without error in mock
+                 // console.log(`Mock fs.writeFileSync allowed for: ${filePath}`);
+             }
          });
     });
 
