@@ -3,9 +3,10 @@
 ## 1. Project Goal
 
 Create a mobile-friendly web application where users can:
-*   Manually enter expense details (Type, Date, Location, **Trip Name**, Cost, Comments).
+*   Manually enter Trip Name.
 *   Upload a photo of a receipt.
 *   Have the application attempt to automatically fill the Date and Cost fields using OCR (Optical Character Recognition) on the uploaded receipt.
+*   Extract expense details (Type, Date, Location, **Trip Name**, Cost, Comments).
 *   View a list of their expenses, **grouped by Trip Name**.
 *   **Export expenses for a specific trip** to an Excel (.xlsx) file named after the trip.
 
