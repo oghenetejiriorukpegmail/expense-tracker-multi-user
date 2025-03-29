@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toastMessage = document.getElementById('toast-message');
     const receiptPreview = document.getElementById('receipt-preview');
     const receiptFilename = document.getElementById('receipt-filename');
-    
+
     // Add loading overlay to the body
     const loadingOverlay = document.createElement('div');
     loadingOverlay.className = 'loading-overlay';
@@ -39,17 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.className = `toast ${type}`;
         toastMessage.textContent = message;
         toast.classList.add('show');
-        
+
         setTimeout(() => {
             toast.classList.remove('show');
         }, 3000);
     };
-    
+
     // --- Loading Overlay Functions ---
     const showLoadingOverlay = () => {
         loadingOverlay.classList.add('show');
     };
-    
+
     const hideLoadingOverlay = () => {
         loadingOverlay.classList.remove('show');
     };
@@ -91,17 +91,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentExpenseId = null;
         receiptPreview.classList.add('hidden');
         currentReceiptFile = null;
-        
+
         // Show receipt upload step, hide edit step
         receiptUploadStep.classList.remove('hidden');
         editExpenseStep.classList.add('hidden');
     };
-    
+
     const showEditStep = (data = {}) => {
         // Hide receipt upload step, show edit step
         receiptUploadStep.classList.add('hidden');
         editExpenseStep.classList.remove('hidden');
-        
+
         // Populate form with extracted data
         document.getElementById('type').value = data.type || '';
         document.getElementById('date').value = data.date || '';
@@ -110,18 +110,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // document.getElementById('tripName').value = data.tripName || ''; // Removed trip name
         document.getElementById('cost').value = data.cost || '';
         document.getElementById('comments').value = data.comments || '';
-        
+
         // Scroll to edit form
         editExpenseStep.scrollIntoView({ behavior: 'smooth' });
     };
 
     const populateFormForEdit = (expense) => {
         expenseIdInput.value = expense.id;
-        
+
         // Show edit step
         receiptUploadStep.classList.add('hidden');
         editExpenseStep.classList.remove('hidden');
-        
+
         // Populate form with expense data
         document.getElementById('type').value = expense.type || '';
         document.getElementById('date').value = expense.date || '';
@@ -130,17 +130,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // document.getElementById('tripName').value = expense.tripName || ''; // Removed trip name
         document.getElementById('cost').value = expense.cost || '';
         document.getElementById('comments').value = expense.comments || '';
-        
+
         if (expense.receiptPath) {
             receiptPreview.classList.remove('hidden');
             receiptFilename.textContent = expense.receiptPath.split('/').pop();
         } else {
             receiptPreview.classList.add('hidden');
         }
-        
+
         submitButton.textContent = 'Update Expense';
         currentExpenseId = expense.id;
-        
+
         // Scroll to form
         document.getElementById('add-expense').scrollIntoView({ behavior: 'smooth' });
     };
@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 noExpensesDiv.classList.add('hidden');
                 document.querySelector('.expense-table-container').classList.remove('hidden');
-                
+
                 // Group expenses by tripName
                 const groupedExpenses = expenses.reduce((acc, expense) => {
                     const trip = expense.tripName || 'Uncategorized';
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     acc[trip].push(expense);
                     return acc;
                 }, {});
-                
+
                 // Sort trip names (optional, Uncategorized first)
                 const sortedTripNames = Object.keys(groupedExpenses).sort((a, b) => {
                     if (a === 'Uncategorized') return -1;
@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </a>
                         </td>`;
                     expenseList.appendChild(headerRow);
-                    
+
                     // Render expenses for this trip
                     groupedExpenses[tripName].forEach(expense => {
                         const row = document.createElement('tr');
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             for (const word of words) { if (isNaN(word) && word.length > 1) return word; }
                             return location.length > 15 ? location.substring(0, 15) + '...' : location;
                         };
-                        
+
                         row.innerHTML = `
                             <td>${expense.type || 'N/A'}</td>
                             <td>${formatDate(expense.date)}</td>
@@ -238,28 +238,28 @@ document.addEventListener('DOMContentLoaded', () => {
                             </td>
                         `;
                         expenseList.appendChild(row);
-                        
+
                         // Add event listeners to the buttons and thumbnail
                         const editButton = row.querySelector('.edit-expense');
                         const deleteButton = row.querySelector('.delete-expense');
                         const receiptThumbnail = row.querySelector('.receipt-thumbnail');
-                        
+
                         // --- DIAGNOSTIC LOGS ---
-                        console.log(`Row for expense ${expense.id} (Trip: ${expense.tripName || 'N/A'})`);
-                        console.log(`  Receipt Path: ${expense.receiptPath}`);
-                        console.log(`  Edit Button Found: ${!!editButton}`);
-                        console.log(`  Delete Button Found: ${!!deleteButton}`);
-                        console.log(`  Thumbnail Found: ${!!receiptThumbnail}`);
+                        // console.log(`Row for expense ${expense.id} (Trip: ${expense.tripName || 'N/A'})`);
+                        // console.log(`  Receipt Path: ${expense.receiptPath}`);
+                        // console.log(`  Edit Button Found: ${!!editButton}`);
+                        // console.log(`  Delete Button Found: ${!!deleteButton}`);
+                        // console.log(`  Thumbnail Found: ${!!receiptThumbnail}`);
                         // --- END DIAGNOSTIC LOGS ---
-                        
+
                         if (editButton) {
                             editButton.addEventListener('click', () => handleEditClick(expense.id));
                         }
-                        
+
                         if (deleteButton) {
                             deleteButton.addEventListener('click', () => openDeleteModal(expense.id));
                         }
-                        
+
                         if (receiptThumbnail) {
                             receiptThumbnail.addEventListener('click', () => openReceiptModal(expense.receiptPath));
                         }
@@ -302,6 +302,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
+                 // Try to parse error response from backend validation
+                 if (response.status === 400) {
+                    const errorData = await response.json();
+                    if (errorData.errors && errorData.errors.length > 0) {
+                        const errorMessages = errorData.errors.map(err => err.msg).join(' ');
+                        throw new Error(`Validation Error: ${errorMessages}`);
+                    }
+                 }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
@@ -313,11 +321,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error adding expense:', error);
             let errorMessage = 'Failed to add expense';
-            
-            // Try to get more specific error message from the response
-            if (error.message.includes('HTTP error')) {
+
+            // Use specific validation error message if available
+            if (error.message.startsWith('Validation Error:')) {
+                errorMessage = error.message.replace('Validation Error: ', '');
+            } else if (error.message.includes('HTTP error')) {
+                // Keep existing logic for other HTTP errors
                 try {
-                    const errorResponse = await fetch('/api/expenses');
+                    const errorResponse = await fetch('/api/expenses'); // Re-fetch might not be ideal here
                     const errorData = await errorResponse.json();
                     if (errorData.message) {
                         errorMessage = errorData.message;
@@ -332,11 +343,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 } catch (e) {
-                    // If we can't parse the error response, use the generic message
                     console.error('Error parsing error response:', e);
                 }
             }
-            
+
             showToast(errorMessage, 'error');
         } finally {
             hideLoading();
@@ -352,6 +362,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
+                 // Try to parse error response from backend validation
+                 if (response.status === 400) {
+                    const errorData = await response.json();
+                    if (errorData.errors && errorData.errors.length > 0) {
+                        const errorMessages = errorData.errors.map(err => err.msg).join(' ');
+                        throw new Error(`Validation Error: ${errorMessages}`);
+                    }
+                 }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
@@ -363,11 +381,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error updating expense:', error);
             let errorMessage = 'Failed to update expense';
-            
-            // Try to get more specific error message from the response
-            if (error.message.includes('HTTP error')) {
+
+             // Use specific validation error message if available
+             if (error.message.startsWith('Validation Error:')) {
+                errorMessage = error.message.replace('Validation Error: ', '');
+            } else if (error.message.includes('HTTP error')) {
+                // Keep existing logic for other HTTP errors
                 try {
-                    const errorResponse = await fetch(`/api/expenses/${expenseId}`);
+                    const errorResponse = await fetch(`/api/expenses/${expenseId}`); // Re-fetch might not be ideal
                     const errorData = await errorResponse.json();
                     if (errorData.message) {
                         errorMessage = errorData.message;
@@ -382,11 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 } catch (e) {
-                    // If we can't parse the error response, use the generic message
                     console.error('Error parsing error response:', e);
                 }
             }
-            
+
             showToast(errorMessage, 'error');
         } finally {
             hideLoading();
@@ -418,32 +438,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Utility Functions ---
     const formatDate = (dateString) => {
-        const options = { year: 'numeric', month: 'short', day: 'numeric' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
+        if (!dateString) return 'N/A';
+        try {
+            // Assuming dateString is YYYY-MM-DD or can be parsed by Date
+            const date = new Date(dateString + 'T00:00:00'); // Add time to avoid timezone issues
+            if (isNaN(date)) return 'Invalid Date';
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            return date.toLocaleDateString(undefined, options);
+        } catch (e) {
+            console.error("Error formatting date:", dateString, e);
+            return 'Invalid Date';
+        }
     };
+
+    // --- Frontend Validation Function ---
+    const validateExpenseForm = () => {
+        const type = document.getElementById('type').value.trim();
+        const date = document.getElementById('date').value.trim();
+        const vendor = document.getElementById('vendor').value.trim();
+        const location = document.getElementById('location').value.trim();
+        const cost = document.getElementById('cost').value.trim();
+        const tripName = document.getElementById('tripName').value.trim(); // Get trip name from main input
+
+        let isValid = true;
+        let errors = [];
+
+        // Required fields check (TripName only required for NEW expenses)
+        if (!currentExpenseId && !tripName) {
+            errors.push('Trip Name is required.');
+            isValid = false;
+        }
+        if (!type) {
+            errors.push('Type is required.');
+            isValid = false;
+        }
+        if (!date) {
+            errors.push('Date is required.');
+            isValid = false;
+        } else if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            errors.push('Date must be in YYYY-MM-DD format.');
+            isValid = false;
+        }
+        if (!vendor) {
+            errors.push('Vendor is required.');
+            isValid = false;
+        }
+        if (!location) {
+            errors.push('Location is required.');
+            isValid = false;
+        }
+        if (!cost) {
+            errors.push('Cost is required.');
+            isValid = false;
+        } else if (isNaN(parseFloat(cost)) || parseFloat(cost) <= 0) {
+            errors.push('Cost must be a positive number.');
+            isValid = false;
+        }
+
+        if (!isValid) {
+            showToast(errors.join(' '), 'error');
+        }
+
+        return isValid;
+    };
+
 
     // --- Process Receipt Function ---
     const processReceipt = async (formData) => {
         try {
             showLoadingOverlay();
             showLoading();
-            
+
             // Store the receipt file for later use
             currentReceiptFile = formData.get('receipt');
-            
+
             // Get OCR settings
             const settings = JSON.parse(localStorage.getItem('expenseTrackerSettings')) || {};
             const ocrMethod = settings.ocrMethod || 'builtin';
-            
+
             // Create a new FormData with the receipt and OCR settings
             const processFormData = new FormData();
             processFormData.append('receipt', currentReceiptFile);
             processFormData.append('ocrMethod', ocrMethod);
-            
+
             // Add API key and model based on selected provider
             let apiKey = '';
             let model = '';
-            
+
             switch (ocrMethod) {
                 case 'openai':
                     apiKey = settings.openaiApiKey;
@@ -486,37 +567,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     processFormData.append('model', model);
                     break;
             }
-            
+
             // Send the receipt for processing
             const response = await fetch('/api/test-ocr', {
                 method: 'POST',
                 body: processFormData
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const result = await response.json();
             console.log('Receipt processed:', result);
-            
+
             if (result.type || result.date || result.cost) {
                 // Show the edit step with the extracted data
-                showEditStep(result);
+                showEditStep(result.extractedData); // Use extractedData object
                 showToast('Receipt processed successfully! Please review the extracted information.');
             } else {
                 // Show the edit step with empty fields
                 showEditStep({});
                 showToast('Receipt uploaded, but could not extract all details. Please fill in the missing information.', 'warning');
             }
-            
+
         } catch (error) {
             console.error('Error processing receipt:', error);
-            
+
             // If there's an error, still show the edit step but with empty fields
             showEditStep({});
             showToast('Could not process receipt. Please fill in the details manually.', 'error');
-            
+
         } finally {
             hideLoadingOverlay();
             hideLoading();
@@ -528,51 +609,68 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const formData = new FormData(receiptUploadForm);
         const tripNameInput = document.getElementById('tripName');
-        
+
         // Check if Trip Name is provided
         if (!tripNameInput || !tripNameInput.value.trim()) {
              showToast('Please enter a Trip Name', 'error');
              tripNameInput.focus(); // Focus the input field
              return;
         }
-        
+
         // Check if a file was selected
         if (!formData.get('receipt') || formData.get('receipt').size === 0) {
             showToast('Please select a receipt file', 'error');
             return;
         }
-        
+
         await processReceipt(formData);
     });
-    
+
     expenseForm.addEventListener('submit', async (event) => {
         event.preventDefault();
+
+        // --- Frontend Validation ---
+        if (!validateExpenseForm()) {
+            return; // Stop submission if validation fails
+        }
+        // --- End Frontend Validation ---
+
+
         const formData = new FormData(expenseForm);
-        
-        // Add the receipt file if we have one (from initial upload)
+
+        // Add the receipt file if we have one (from initial upload or if editing without changing receipt)
         if (currentReceiptFile) {
             formData.append('receipt', currentReceiptFile);
+        } else if (currentExpenseId) {
+            // If editing and no *new* file was selected via processReceipt,
+            // we don't need to send the 'receipt' field at all, backend will keep the old one.
+            formData.delete('receipt');
         }
-        
+
         // Explicitly add the Trip Name from the main page input
         const tripNameInput = document.getElementById('tripName');
         if (tripNameInput && tripNameInput.value) {
             formData.set('tripName', tripNameInput.value); // Use set to overwrite if already present
         } else {
-             formData.delete('tripName'); // Ensure it's not sent if empty
+             formData.delete('tripName'); // Ensure it's not sent if empty (relevant for updates)
         }
-        
+
         if (currentExpenseId) {
             await updateExpense(currentExpenseId, formData);
         } else {
+            // Ensure receipt file exists for adding new expense
+            if (!currentReceiptFile) {
+                 showToast('Receipt file is missing. Please upload a receipt first.', 'error');
+                 return;
+            }
             await addExpense(formData);
         }
     });
 
     cancelEditButton.addEventListener('click', resetForm);
-    
+
     // Removed event listener for the old global export button
-    
+
     closeModal.addEventListener('click', closeReceiptModal);
     window.addEventListener('click', (event) => {
         if (event.target === receiptModal) {
