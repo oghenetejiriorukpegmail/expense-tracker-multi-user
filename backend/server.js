@@ -476,16 +476,26 @@ app.post('/api/expenses',
             return res.status(400).json({ errors: errors.array() });
         }
         try {
+            console.log("POST /api/expenses: Inside try block"); // Log entry
             const { type: formType, date: formDate, vendor: formVendor, location: formLocation, cost: formCost, comments: formComments, tripName: formTripName } = req.body;
-            if (!req.file) return res.status(400).json({ message: 'Receipt upload is required.' });
+            console.log("POST /api/expenses: Form data extracted"); // Log after extraction
+
+            if (!req.file) {
+                console.log("POST /api/expenses: No file found, returning 400");
+                return res.status(400).json({ message: 'Receipt upload is required.' });
+            }
              if (!formTripName) {
+                  console.log("POST /api/expenses: No tripName found, returning 400");
                   if (req.file && req.file.path) fs.unlink(req.file.path, (err) => { if (err) console.error("Error deleting file after validation error:", err);});
                  return res.status(400).json({ message: 'Trip Name is required.' });
              }
             let receiptPath = `/uploads/${req.file.filename}`;
+            console.log("POST /api/expenses: Reading data..."); // Log before read
             const expenses = readData();
+            console.log("POST /api/expenses: Data read successfully"); // Log after read
+
             const finalType = formType;
-            const finalDate = formDate;
+            const finalDate = formDate; // Already a Date object from validator
             const finalVendor = formVendor;
             const finalLocation = formLocation;
             const finalCost = parseFloat(formCost);
@@ -501,13 +511,18 @@ app.post('/api/expenses',
                 cost: finalCost, comments: finalComments, tripName: finalTripName, receiptPath: receiptPath,
                 createdAt: new Date().toISOString()
             };
+            console.log("POST /api/expenses: New expense object created:", newExpense); // Log object
             expenses.push(newExpense);
+            console.log("POST /api/expenses: Writing data..."); // Log before write
             writeData(expenses);
+            console.log("POST /api/expenses: Data written successfully"); // Log after write
             console.log('Expense added (internal):', newExpense);
             const responseExpense = { ...newExpense, date: newExpense.date.toISOString().split('T')[0] };
+            console.log("POST /api/expenses: Sending 201 response"); // Log before response
             res.status(201).json({ message: 'Expense added successfully', expense: responseExpense });
+
         } catch (error) {
-            console.error('Error adding expense:', error);
+            console.error("POST /api/expenses: Error caught in try block:", error); // Log error in catch
              if (req.file && req.file.path) fs.unlink(req.file.path, (err) => { if (err) console.error("Error deleting file after server error:", err);});
             res.status(500).json({ message: 'Failed to add expense due to server error.' });
         }
