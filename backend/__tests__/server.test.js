@@ -72,8 +72,9 @@ describe('Expense API Endpoints', () => {
             .field('location', newExpenseData.location)
             .field('cost', newExpenseData.cost.toString()) // Ensure cost is sent as string like form data
             .field('comments', newExpenseData.comments)
-            .field('tripName', newExpenseData.tripName);
-            // We don't need to attach a file for this test case
+            .field('tripName', newExpenseData.tripName)
+            // Attach a dummy file buffer to satisfy the req.file check
+            .attach('receipt', Buffer.from('dummy receipt content'), 'dummy.txt');
 
         // Log response body if status is not 201
         if (res.statusCode !== 201) {
