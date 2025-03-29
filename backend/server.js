@@ -232,6 +232,17 @@ const expenseValidationRules = [
     body('comments').optional().trim().escape(),
     body('tripName').optional({ nullable: true, checkFalsy: true }).trim().escape()
 ];
+
+// Validation rules specifically for POST (creation) where some fields are mandatory
+const expenseCreationValidationRules = [
+    body('type').notEmpty().withMessage('Type is required').trim().escape(),
+    body('date').notEmpty().withMessage('Date is required').isISO8601().toDate().withMessage('Invalid date format, please use YYYY-MM-DD'),
+    body('vendor').notEmpty().withMessage('Vendor is required').trim().escape(),
+    body('location').notEmpty().withMessage('Location is required').trim().escape(),
+    body('cost').notEmpty().withMessage('Cost is required').isFloat({ gt: 0 }).withMessage('Cost must be a positive number'),
+    body('comments').optional().trim().escape(),
+    body('tripName').notEmpty().withMessage('Trip Name is required').trim().escape()
+];
 // --- End Validation Rules ---
 
 
