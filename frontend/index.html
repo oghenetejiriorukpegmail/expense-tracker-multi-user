@@ -5,54 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Expense Tracker</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <h1>Expense Tracker</h1>
+    
+    <nav class="main-nav">
+        <ul>
+            <li><a href="index.html" class="active"><i class="fas fa-home"></i> Home</a></li>
+            <li><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+    </nav>
 
     <section id="add-expense">
         <h2>Add New Expense</h2>
-        <form id="expense-form">
-            <div class="form-group">
-                <label for="type">Type:</label>
-                <input type="text" id="type" name="type" required>
+        <div class="info-box">
+            <p><i class="fas fa-info-circle"></i> Upload a receipt image or PDF and we'll automatically extract the expense details for you.</p>
+        </div>
+        
+        <!-- Step 1: Receipt Upload & Trip Name -->
+        <div id="receipt-upload-step">
+            <form id="receipt-upload-form">
+                 <div class="form-group">
+                    <label for="tripName">Trip Name (Required):</label>
+                    <input type="text" id="tripName" name="tripName" placeholder="e.g., Business Trip NYC Q1" required>
+                </div>
+                <div class="form-group receipt-upload">
+                    <label for="receipt">Upload Receipt (Required):</label>
+                    <input type="file" id="receipt" name="receipt" accept="image/*,application/pdf" required>
+                    <div id="receipt-preview" class="hidden">
+                        <p>Current receipt: <span id="receipt-filename"></span></p>
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button type="submit" id="process-receipt-button" class="btn-block">Process Receipt</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Step 2: Edit Extracted Information -->
+        <div id="edit-expense-step" class="hidden">
+            <div class="info-box success-box">
+                <p><i class="fas fa-check-circle"></i> Information extracted! Please review and edit if needed.</p>
             </div>
-            <div class="form-group">
-                <label for="date">Date:</label>
-                <input type="date" id="date" name="date" required>
-            </div>
-            <div class="form-group">
-                <label for="location">Location:</label>
-                <input type="text" id="location" name="location">
-            </div>
-            <div class="form-group">
-                <label for="cost">Cost:</label>
-                <input type="number" id="cost" name="cost" step="0.01" required>
-            </div>
-            <div class="form-group">
-                <label for="comments">Comments:</label>
-                <textarea id="comments" name="comments" rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="receipt">Receipt Photo:</label>
-                <input type="file" id="receipt" name="receipt" accept="image/*,application/pdf">
-            </div>
-            <button type="submit">Add Expense</button>
-        </form>
+            <form id="expense-form">
+                <input type="hidden" id="expense-id" name="expense-id">
+                <!-- Trip Name input removed from here -->
+                <div class="form-group">
+                    <label for="type">Type:</label>
+                    <input type="text" id="type" name="type" required>
+                </div>
+                <div class="form-group">
+                    <label for="date">Date:</label>
+                    <input type="date" id="date" name="date" required>
+                </div>
+                <div class="form-group">
+                    <label for="vendor">Vendor:</label>
+                    <input type="text" id="vendor" name="vendor">
+                </div>
+                <div class="form-group">
+                    <label for="location">Location:</label>
+                    <input type="text" id="location" name="location">
+                </div>
+                <div class="form-group">
+                    <label for="cost">Cost:</label>
+                    <input type="number" id="cost" name="cost" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="comments">Additional Comments:</label>
+                    <textarea id="comments" name="comments" rows="3" placeholder="Add any additional notes here..."></textarea>
+                </div>
+                <div class="btn-group">
+                    <button type="submit" id="submit-button" class="btn-block">Save Expense</button>
+                    <button type="button" id="cancel-edit" class="btn-danger">Cancel</button>
+                </div>
+            </form>
+        </div>
     </section>
 
     <section id="expense-list-section">
         <h2>Expenses</h2>
-        <ul id="expense-list">
-            <!-- Expense items will be added here by JavaScript -->
-            <li>No expenses yet.</li>
-        </ul>
+        <div id="loading" class="loading">Loading expenses...</div>
+        <div class="expense-table-container">
+            <table id="expense-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Vendor</th>
+                        <th>Location</th>
+                        <!-- Removed Trip Name Header -->
+                        <th>Total Cost</th>
+                        <th>Receipt</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="expense-list">
+                    <!-- Expense items will be added here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div id="no-expenses" class="hidden">No expenses yet.</div>
     </section>
+    
+    <!-- Removed Global Export Section -->
 
-    <section id="export-section">
-        <h2>Export</h2>
-        <button id="export-button">Export to Excel</button>
-    </section>
+    <!-- Receipt Image Modal -->
+    <div id="receipt-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <img id="modal-image" class="modal-image" src="" alt="Receipt">
+        </div>
+    </div>
 
-    <script src="script.js"></script> <!-- We'll create this next -->
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal">
+        <div class="modal-content">
+            <h2>Confirm Delete</h2>
+            <p>Are you sure you want to delete this expense? This action cannot be undone.</p>
+            <div class="btn-group">
+                <button id="confirm-delete" class="btn-danger">Delete</button>
+                <button id="cancel-delete">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <span id="toast-message"></span>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
