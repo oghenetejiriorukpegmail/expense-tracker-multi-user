@@ -455,7 +455,7 @@ app.post('/api/test-ocr', upload.single('receipt'), async (req, res) => {
 // POST /api/expenses - Add a new expense (No OCR here)
 app.post('/api/expenses',
     upload.single('receipt'),
-    expenseValidationRules,
+    expenseCreationValidationRules, // Use stricter rules for creation
     async (req, res) => { /* ... unchanged (already removed OCR) ... */
         console.log('POST /api/expenses hit');
         const errors = validationResult(req);
@@ -539,7 +539,13 @@ app.get('/api/export-expenses', (req, res) => { /* ... unchanged ... */
 
 
 // --- Server Start ---
-app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-    console.log(`Frontend accessible at http://localhost:${PORT}`);
-});
+// Conditionally start the server only if the script is run directly
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server listening on port ${PORT}`);
+        console.log(`Frontend accessible at http://localhost:${PORT}`);
+    });
+}
+
+// Export the app instance for testing
+module.exports = app;
