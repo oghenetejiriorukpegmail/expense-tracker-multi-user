@@ -65,7 +65,15 @@ describe('Expense API Endpoints', () => {
 
         const res = await request(app)
             .post('/api/expenses')
-            .send(newExpenseData); // Send data as JSON body
+            // Simulate sending form data fields instead of JSON
+            .field('type', newExpenseData.type)
+            .field('date', newExpenseData.date)
+            .field('vendor', newExpenseData.vendor)
+            .field('location', newExpenseData.location)
+            .field('cost', newExpenseData.cost.toString()) // Ensure cost is sent as string like form data
+            .field('comments', newExpenseData.comments)
+            .field('tripName', newExpenseData.tripName);
+            // We don't need to attach a file for this test case
 
         // Log response body if status is not 201
         if (res.statusCode !== 201) {
