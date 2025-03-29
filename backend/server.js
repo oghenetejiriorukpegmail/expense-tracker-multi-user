@@ -471,6 +471,7 @@ app.post('/api/expenses',
         console.log('POST /api/expenses hit');
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+             console.error("Validation Errors:", JSON.stringify(errors.array())); // Log validation errors
              if (req.file && req.file.path) fs.unlink(req.file.path, (err) => { if (err) console.error("Error deleting file after validation error:", err);});
             return res.status(400).json({ errors: errors.array() });
         }
