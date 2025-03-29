@@ -213,11 +213,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         row.innerHTML = `
                             <td>${expense.type || 'N/A'}</td>
                             <td>${formattedDate}</td>
-                            <td>${expense.type || 'N/A'}</td>
-                            <td>${formatDate(expense.date)}</td>
-                            <td>${expense.vendor || expense.location || 'N/A'}</td>
+                            <td>${expense.vendor || 'N/A'}</td>
                             <td>${extractCity(expense.location)}</td>
-                            <td>$${parseFloat(expense.cost).toFixed(2)}</td>
+                            <td>$${parseFloat(expense.cost || 0).toFixed(2)}</td>
                             <td class="receipt-cell">
                                 ${expense.receiptPath ? `
                                     <div class="receipt-container">
