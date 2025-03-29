@@ -204,7 +204,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         const row = document.createElement('tr');
                         const extractCity = (location) => { /* ... */ }; // Keep helper
 
+                        // --- DEBUG LOG for Date Formatting ---
+                        console.log(`Formatting date for expense ${expense.id}:`, expense.date, `(Type: ${typeof expense.date})`);
+                        const formattedDate = formatDate(expense.date);
+                        console.log(`Formatted date result:`, formattedDate);
+                        // --- END DEBUG LOG ---
+
                         row.innerHTML = `
+                            <td>${expense.type || 'N/A'}</td>
+                            <td>${formattedDate}</td>
                             <td>${expense.type || 'N/A'}</td>
                             <td>${formatDate(expense.date)}</td>
                             <td>${expense.vendor || expense.location || 'N/A'}</td>
