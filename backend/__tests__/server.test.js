@@ -8,9 +8,15 @@ jest.mock('fs');
 
 // Import the actual app instance from the refactored server.js
 const app = require('../server'); // Now this should work
+const Tesseract = require('tesseract.js'); // Import Tesseract to terminate it
 
 describe('Expense API Endpoints', () => {
     let mockExpenses = [];
+
+    // Terminate Tesseract worker after all tests
+    afterAll(async () => {
+        await Tesseract.terminate();
+    });
 
     beforeEach(() => {
         // Reset mocks before each test
