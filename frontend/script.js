@@ -202,7 +202,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Render expenses for this trip
                     groupedExpenses[tripName].forEach(expense => {
                         const row = document.createElement('tr');
-                        const extractCity = (location) => { /* ... */ }; // Keep helper
+                        // Restore extractCity function logic
+                        const extractCity = (location) => {
+                            if (!location) return 'N/A';
+                            // Try matching "City, ST" format first
+                            const cityStateMatch = location.match(/([^,]+),\s*([A-Z]{2})/);
+                            if (cityStateMatch && cityStateMatch[1]) return cityStateMatch[1].trim();
+                            // Fallback: Split by space, return first word > 1 char if not a number
+                            const words = location.split(' ');
+                            for (const word of words) {
+                                if (isNaN(word) && word.length > 1) return word;
+                            }
+                            // Final fallback: Truncate long strings or return as is
+                            return location.length > 15 ? location.substring(0, 15) + '...' : location;
+                        };
 
                         // --- DEBUG LOG for Date Formatting ---
                         console.log(`Formatting date for expense ${expense.id}:`, expense.date, `(Type: ${typeof expense.date})`);
