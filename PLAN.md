@@ -4,7 +4,7 @@
 
 Create a mobile-friendly web application where users can:
 *   Register and log in securely.
-*   **Manage (create, view, delete) Trips on a dedicated page (`trips.html`).**
+*   **Manage (create, view, delete) Trips and configure OCR Settings on a combined page (`trips.html`).**
 *   Upload a photo of a receipt and associate it with a Trip Name (`index.html`).
 *   Have the application attempt to automatically fill the Date and Cost fields using OCR (Optical Character Recognition) on the uploaded receipt.
 *   Extract expense details (Type, Date, Location, Trip Name, Cost, Comments).
@@ -15,15 +15,13 @@ Create a mobile-friendly web application where users can:
 
 The application currently has the following functionality:
 *   Frontend UI with:
-    *   **Trip Management page (`trips.html`)**
+    *   **Combined Trip Management & Settings page (`trips.html`)**
     *   Expense entry/viewing page (`index.html`)
-    *   Settings page (`settings.html`)
 *   Multi-user support with registration and login.
 *   Backend server with Express handling API endpoints for users, trips, and expenses.
 *   File upload functionality for receipt images and PDFs.
 *   OCR processing using Tesseract.js (built-in) or AI providers (Gemini, OpenAI, Claude, OpenRouter via `utils/ocr.js` module).
-*   Settings page for configuring OCR method and API keys (requires login).
-*   OCR testing functionality on the settings page.
+*   OCR configuration and testing integrated into the Trips page (requires login).
 *   Per-Trip Excel export functionality (Requires `tripName` query param, filename matches trip name, requires login).
 *   **Data storage using an SQLite database (`backend/expenses.db`) with `users`, `trips`, and `expenses` tables.**
 *   Expense editing and deletion (restricted to owner).
@@ -35,7 +33,7 @@ The application currently has the following functionality:
 
 The application utilizes the following technology stack:
 
-*   **Frontend:** HTML, CSS, and JavaScript (`script.js`, `settings.js`, `trips.js`). Provides the user interface, including login/registration, trip management, expense entry/viewing, and settings pages.
+*   **Frontend:** HTML, CSS, and JavaScript (`script.js`, `trips.js`). Provides the user interface, including login/registration, combined trip management/settings, and expense entry/viewing pages.
 *   **Backend:** Node.js with the Express framework. Handles:
     *   User authentication (JWT, bcrypt).
     *   API endpoints for managing users, trips, and expenses.
@@ -46,7 +44,7 @@ The application utilizes the following technology stack:
 *   **Database:** SQLite (`backend/expenses.db`).
 *   **Authentication:** JWT (`jsonwebtoken`) for session management, `bcrypt` for password hashing.
 *   **OCR:** Logic encapsulated in `backend/utils/ocr.js`. Supports Tesseract.js and AI providers.
-*   **API Key Management:** Keys for AI OCR providers are stored in `backend/.env` (managed via the Settings UI -> `/api/update-env` endpoint, requires login).
+*   **API Key Management:** Keys for AI OCR providers are stored in `backend/.env` (managed via the Trips/Settings UI -> `/api/update-env` endpoint, requires login).
 *   **Excel Generation:** `xlsx` library creates .xlsx files for per-trip export.
 *   **Testing:** Jest for backend unit testing.
 
@@ -57,16 +55,14 @@ graph TD
     subgraph User Device (Browser)
         A[Frontend: HTML/CSS/JS] --> Auth{Login/Register Forms};
         Auth --> E[Backend API];
-        A --> Trips[Trips Page (trips.html)];
-        Trips --> E;
-        Trips -- Link --> B[Expense Form (index.html)];
-        A --> Settings[Settings Page (settings.html)];
-        Settings --> E;
+        A --> TripsSettings[Trips & Settings Page (trips.html)];
+        TripsSettings --> E;
+        TripsSettings -- Link --> B[Expense Form (index.html)];
         B --> C[Upload Receipt];
         C --> D{Submit Data};
         D --> E;
         E --> F[Display Expenses (index.html)];
-        Trips --> G[Export Button]; // Export initiated from Trips page
+        TripsSettings --> G[Export Button]; // Export initiated from Trips page
         G --> E;
     end
 
@@ -126,6 +122,7 @@ graph TD
     *   **(Done)** Implemented backend unit tests.
     *   **(Done)** Migrated data storage from JSON to SQLite.
     *   **(Done)** Separated Trip Management into `trips.html` and `trips.js`.
+    *   **(Done)** Merged Settings functionality into `trips.html` and `trips.js`.
 
 ## 6. Future Development Roadmap
 

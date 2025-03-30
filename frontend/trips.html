@@ -74,6 +74,162 @@
                 <div id="no-trips" class="hidden">No trips created yet.</div>
             </div>
         </section>
+
+        <hr class="section-divider"> <!-- Add a visual separator -->
+
+        <section id="settings-section">
+           <h2>OCR Settings</h2>
+           <div class="info-box">
+               <p><i class="fas fa-info-circle"></i> Configure how receipts are processed. You can use the built-in OCR or connect to an AI service for better accuracy.</p>
+           </div>
+           
+           <form id="settings-form">
+               <div class="form-group">
+                   <label for="ocr-method">OCR Method:</label>
+                   <select id="ocr-method" name="ocrMethod">
+                       <option value="builtin">Built-in OCR (Tesseract.js)</option>
+                       <option value="openai">OpenAI Vision API</option>
+                       <option value="gemini">Google Gemini Vision</option>
+                       <option value="claude">Anthropic Claude</option>
+                       <option value="openrouter">Open Router (Multiple Models)</option>
+                   </select>
+               </div>
+               
+               <div id="ai-settings" class="hidden">
+                   <!-- OpenAI Settings -->
+                   <div id="openai-settings" class="provider-settings">
+                       <h3>OpenAI Settings</h3>
+                       <div class="form-group">
+                           <label for="openai-api-key">OpenAI API Key:</label>
+                           <input type="password" id="openai-api-key" name="openaiApiKey" placeholder="sk-..." class="api-key-input">
+                           <small>Your API key is stored locally and never sent to our servers.</small>
+                       </div>
+                       
+                       <div class="form-group">
+                           <label for="openai-model">Model:</label>
+                           <select id="openai-model" name="openaiModel">
+                               <option value="gpt-4-vision-preview">GPT-4 Vision</option>
+                               <option value="gpt-4o">GPT-4o</option>
+                           </select>
+                           <small>Note: Model list is currently static. Dynamic fetching is planned.</small>
+                       </div>
+                   </div>
+                   
+                   <!-- Gemini Settings -->
+                   <div id="gemini-settings" class="provider-settings hidden">
+                       <h3>Google Gemini Settings</h3>
+                       <div class="form-group">
+                           <label for="gemini-api-key">Gemini API Key:</label>
+                           <input type="password" id="gemini-api-key" name="geminiApiKey" placeholder="AIza..." class="api-key-input">
+                           <small>Your API key is stored locally and never sent to our servers.</small>
+                       </div>
+                       
+                       <div class="form-group">
+                           <label for="gemini-model">Model:</label>
+                           <select id="gemini-model" name="geminiModel">
+                               <option value="gemini-pro-vision">Gemini Pro Vision</option>
+                               <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                           </select>
+                           <small>Note: Model list is currently static. Dynamic fetching is planned.</small>
+                       </div>
+                   </div>
+                   
+                   <!-- Claude Settings -->
+                   <div id="claude-settings" class="provider-settings hidden">
+                       <h3>Anthropic Claude Settings</h3>
+                       <div class="form-group">
+                           <label for="claude-api-key">Claude API Key:</label>
+                           <input type="password" id="claude-api-key" name="claudeApiKey" placeholder="sk-ant-..." class="api-key-input">
+                           <small>Your API key is stored locally and never sent to our servers.</small>
+                       </div>
+                       
+                       <div class="form-group">
+                           <label for="claude-model">Model:</label>
+                           <select id="claude-model" name="claudeModel">
+                               <option value="claude-3-opus">Claude 3 Opus</option>
+                               <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                           </select>
+                           <small>Note: Model list is currently static. Dynamic fetching is planned.</small>
+                       </div>
+                   </div>
+                   
+                   <!-- Open Router Settings -->
+                   <div id="openrouter-settings" class="provider-settings hidden">
+                       <h3>Open Router Settings</h3>
+                       <div class="form-group">
+                           <label for="openrouter-api-key">Open Router API Key:</label>
+                           <input type="password" id="openrouter-api-key" name="openrouterApiKey" placeholder="sk-or-..." class="api-key-input">
+                           <small>Your API key is stored locally and never sent to our servers.</small>
+                       </div>
+                       
+                       <div class="form-group">
+                           <label for="openrouter-model">Model:</label>
+                           <select id="openrouter-model" name="openrouterModel">
+                               <option value="anthropic/claude-3-opus">Claude 3 Opus (via Open Router)</option>
+                               <option value="openai/gpt-4-vision">GPT-4 Vision (via Open Router)</option>
+                               <option value="google/gemini-pro-vision">Gemini Pro Vision (via Open Router)</option>
+                           </select>
+                           <small>Note: Model list is currently static. Dynamic fetching is planned.</small>
+                       </div>
+                   </div>
+                   
+                   <div class="form-group">
+                       <label>
+                           <input type="checkbox" id="save-api-key" name="saveApiKey" checked>
+                           Save API keys in browser storage
+                       </label>
+                       <small>If unchecked, you'll need to enter your API keys each time you restart the application.</small>
+                   </div>
+               </div>
+               
+               <button type="submit" class="btn-primary btn-block">Save Settings</button>
+           </form>
+       </section>
+
+       <hr class="section-divider"> <!-- Add a visual separator -->
+
+       <section id="test-ocr-section" class="hidden">
+           <h2>Test OCR</h2>
+           <div class="info-box">
+               <p><i class="fas fa-vial"></i> Test your OCR settings with a sample receipt.</p>
+           </div>
+           
+           <form id="test-ocr-form">
+               <div class="form-group receipt-upload">
+                   <label for="test-receipt">Upload Test Receipt:</label>
+                   <input type="file" id="test-receipt" name="receipt" accept="image/*,application/pdf">
+               </div>
+               
+               <button type="submit" class="btn-secondary btn-block">Test OCR</button>
+           </form>
+           
+           <div id="test-results" class="hidden">
+               <h3>OCR Results</h3>
+               <div class="results-container">
+                   <div class="result-item">
+                       <span class="result-label">Type:</span>
+                       <span id="result-type" class="result-value">-</span>
+                   </div>
+                   <div class="result-item">
+                       <span class="result-label">Date:</span>
+                       <span id="result-date" class="result-value">-</span>
+                   </div>
+                   <div class="result-item">
+                       <span class="result-label">Vendor:</span>
+                       <span id="result-vendor" class="result-value">-</span>
+                   </div>
+                   <div class="result-item">
+                       <span class="result-label">Location:</span>
+                       <span id="result-location" class="result-value">-</span>
+                   </div>
+                   <div class="result-item">
+                       <span class="result-label">Cost:</span>
+                       <span id="result-cost" class="result-value">-</span>
+                   </div>
+               </div>
+           </div>
+       </section>
+
     </div>
     <!-- End Main App Content -->
 

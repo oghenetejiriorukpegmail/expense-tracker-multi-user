@@ -21,6 +21,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const noTripsDiv = document.getElementById('no-trips');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
+    // Settings Elements (Copied from settings.js)
+    const settingsForm = document.getElementById('settings-form');
+    const ocrMethodSelect = document.getElementById('ocr-method');
+    const aiSettings = document.getElementById('ai-settings');
+    const saveApiKeyCheckbox = document.getElementById('save-api-key');
+    const testOcrSection = document.getElementById('test-ocr-section');
+    const testOcrForm = document.getElementById('test-ocr-form');
+    const testResults = document.getElementById('test-results');
 
     // Auth state
     let authToken = null;
@@ -238,6 +246,151 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Removed populateTripDropdown as it's not needed on this page
 
+    // --- Settings Functions (Copied from settings.js) ---
+    function handleOcrMethodChange() {
+        const selectedMethod = ocrMethodSelect.value;
+        if (selectedMethod === 'builtin') {
+            aiSettings.classList.add('hidden');
+            testOcrSection.classList.add('hidden');
+        } else {
+            aiSettings.classList.remove('hidden');
+            testOcrSection.classList.remove('hidden');
+            document.querySelectorAll('.provider-settings').forEach(el => el.classList.add('hidden'));
+            switch (selectedMethod) {
+                case 'openai': document.getElementById('openai-settings').classList.remove('hidden'); break;
+                case 'gemini': document.getElementById('gemini-settings').classList.remove('hidden'); break;
+                case 'claude': document.getElementById('claude-settings').classList.remove('hidden'); break;
+                case 'openrouter': document.getElementById('openrouter-settings').classList.remove('hidden'); break;
+            }
+        }
+    }
+
+    function loadSettings() {
+        try {
+            const settings = JSON.parse(localStorage.getItem('expenseTrackerSettings')) || {};
+            if (settings.ocrMethod) ocrMethodSelect.value = settings.ocrMethod;
+            if (settings.openaiApiKey) document.getElementById('openai-api-key').value = settings.openaiApiKey;
+            if (settings.geminiApiKey) document.getElementById('gemini-api-key').value = settings.geminiApiKey;
+            if (settings.claudeApiKey) document.getElementById('claude-api-key').value = settings.claudeApiKey;
+            if (settings.openrouterApiKey) document.getElementById('openrouter-api-key').value = settings.openrouterApiKey;
+            if (settings.openaiModel) document.getElementById('openai-model').value = settings.openaiModel;
+            if (settings.geminiModel) {
+                const geminiSelect = document.getElementById('gemini-model');
+                if ([...geminiSelect.options].some(option => option.value === settings.geminiModel)) geminiSelect.value = settings.geminiModel;
+                else geminiSelect.value = 'gemini-pro-vision';
+            }
+            if (settings.claudeModel) document.getElementById('claude-model').value = settings.claudeModel;
+            if (settings.openrouterModel) document.getElementById('openrouter-model').value = settings.openrouterModel;
+            if (settings.saveApiKey !== undefined) saveApiKeyCheckbox.checked = settings.saveApiKey;
+            handleOcrMethodChange();
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            showToast('Failed to load settings', 'error');
+        }
+    }
+
+    async function saveSettings(event) {
+        event.preventDefault();
+        const saveButton = document.querySelector('#settings-form button[type="submit"]');
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+        let backendUpdateSuccess = false;
+        let localSaveSuccess = false;
+        const settings = {
+            ocrMethod: ocrMethodSelect.value,
+            saveApiKey: saveApiKeyCheckbox.checked,
+            openaiModel: document.getElementById('openai-model').value,
+            geminiModel: document.getElementById('gemini-model').value,
+            claudeModel: document.getElementById('claude-model').value,
+            openrouterModel: document.getElementById('openrouter-model').value,
+        };
+        const openaiKey = document.getElementById('openai-api-key').value;
+        const geminiKey = document.getElementById('gemini-api-key').value;
+        const claudeKey = document.getElementById('claude-api-key').value;
+        const openrouterKey = document.getElementById('openrouter-api-key').value;
+        const keysForBackend = {
+            OPENAI_API_KEY: openaiKey, GEMINI_API_KEY: geminiKey,
+            CLAUDE_API_KEY: claudeKey, OPENROUTER_API_KEY: openrouterKey,
+        };
+        try {
+            const response = await fetchWithAuth('/api/update-env', { method: 'POST', body: keysForBackend });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || `Failed to update keys on server (Status: ${response.status})`);
+            console.log('Backend .env update response:', result.message);
+            backendUpdateSuccess = true;
+        } catch (error) {
+            console.error('Error updating .env file via API:', error);
+            if (error.message !== 'Authentication required') showToast(`Error saving keys to server: ${error.message}`, 'error');
+            backendUpdateSuccess = false;
+        }
+        try {
+            if (settings.saveApiKey) {
+                if (openaiKey) settings.openaiApiKey = openaiKey; else delete settings.openaiApiKey;
+                if (geminiKey) settings.geminiApiKey = geminiKey; else delete settings.geminiApiKey;
+                if (claudeKey) settings.claudeApiKey = claudeKey; else delete settings.claudeApiKey;
+                if (openrouterKey) settings.openrouterApiKey = openrouterKey; else delete settings.openrouterApiKey;
+            } else {
+                delete settings.openaiApiKey; delete settings.geminiApiKey;
+                delete settings.claudeApiKey; delete settings.openrouterApiKey;
+            }
+            localStorage.setItem('expenseTrackerSettings', JSON.stringify(settings));
+            localSaveSuccess = true;
+            console.log('Settings saved locally:', settings);
+        } catch (error) {
+            console.error('Error saving settings to localStorage:', error);
+            showToast('Failed to save settings locally', 'error');
+        }
+        if (backendUpdateSuccess && localSaveSuccess) showToast('Settings saved successfully!');
+        else if (localSaveSuccess && !backendUpdateSuccess) showToast('Settings saved locally, but failed to save to server.', 'warning');
+        else if (!localSaveSuccess && backendUpdateSuccess) showToast('Settings saved to server, but failed to save locally.', 'warning');
+        handleOcrMethodChange();
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Settings';
+    }
+
+    async function testOCR(event) {
+        event.preventDefault();
+        const formData = new FormData(testOcrForm);
+        const settings = JSON.parse(localStorage.getItem('expenseTrackerSettings')) || {};
+        const selectedMethod = settings.ocrMethod || 'builtin';
+        if (!formData.get('receipt') || formData.get('receipt').size === 0) {
+            showToast('Please select a receipt file', 'error'); return;
+        }
+        formData.append('ocrMethod', selectedMethod);
+        let model = '';
+        switch (selectedMethod) {
+            case 'openai': model = document.getElementById('openai-model').value; formData.append('model', model); break;
+            case 'gemini': model = document.getElementById('gemini-model').value; formData.append('model', model); break;
+            case 'claude': model = document.getElementById('claude-model').value; formData.append('model', model); break;
+            case 'openrouter': model = document.getElementById('openrouter-model').value; formData.append('model', model); break;
+        }
+        const testButton = document.querySelector('#test-ocr-form button');
+        try {
+            testButton.textContent = 'Processing...'; testButton.disabled = true;
+            const response = await fetchWithAuth('/api/test-ocr', { method: 'POST', body: formData });
+            let result;
+            try { result = await response.json(); } catch (jsonError) {
+                const textResponse = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, Response: ${textResponse}`);
+            }
+            if (!response.ok) throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            console.log('OCR test result:', result);
+            testResults.classList.remove('hidden');
+            document.getElementById('result-type').textContent = result.type || 'Not detected';
+            document.getElementById('result-date').textContent = result.date || 'Not detected';
+            document.getElementById('result-vendor').textContent = result.vendor || 'Not detected';
+            document.getElementById('result-location').textContent = result.location || 'Not detected';
+            document.getElementById('result-cost').textContent = result.cost ? `$${result.cost}` : 'Not detected';
+            showToast('OCR test completed');
+        } catch (error) {
+            console.error('Error testing OCR:', error);
+            showToast(`Failed to test OCR: ${error.message}`, 'error');
+            testResults.classList.add('hidden');
+        } finally {
+            testButton.textContent = 'Test OCR'; testButton.disabled = false;
+        }
+    }
+
     // --- Auth Handlers (Copied from script.js/settings.js) ---
     async function handleLogin(event) {
         event.preventDefault();
@@ -315,6 +468,10 @@ document.addEventListener('DOMContentLoaded', () => {
         registerFormContainer.classList.add('hidden');
         loginFormContainer.classList.remove('hidden');
     });
+    // Settings Listeners
+    ocrMethodSelect.addEventListener('change', handleOcrMethodChange);
+    settingsForm.addEventListener('submit', saveSettings);
+    testOcrForm.addEventListener('submit', testOCR);
     // Trip Management Listeners
     addTripButton.addEventListener('click', handleAddTrip);
     tripListUl.addEventListener('click', (event) => { // Delegated listener for delete buttons
