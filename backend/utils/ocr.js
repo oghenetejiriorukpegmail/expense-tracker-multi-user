@@ -9,6 +9,8 @@ const fs = require('fs');
 const Tesseract = require('tesseract.js');
 const pdf = require('pdf-parse');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require('openai');
+const Anthropic = require('@anthropic-ai/sdk');
 
 /**
  * Extract text from a PDF file
@@ -289,6 +291,215 @@ async function processWithGeminiOCR(filePath, mimeType, apiKey, modelName = 'gem
     }
 }
 
+/**
+ * Process OCR using OpenAI API
+ * @param {string} filePath - Path to the file
+ * @param {string} mimeType - MIME type of the file
+ * @param {string} apiKey - OpenAI API key
+ * @param {string} modelName - OpenAI model name (e.g., gpt-4-vision-preview)
+ * @returns {Promise<Object>} - Extracted data
+ */
+async function processWithOpenAIOCR(filePath, mimeType, apiKey, modelName = 'gpt-4-vision-preview') {
+    try {
+        const openai = new OpenAI({ apiKey });
+        const base64Image = Buffer.from(fs.readFileSync(filePath)).toString('base64');
+        const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+        const prompt = `Extract the following details from this receipt image/document in JSON format: date (YYYY-MM-DD), cost (total amount as number), vendor (store/service name), location (city/address), type (e.g., Groceries, Dining, Transportation, Shopping, Utilities, Entertainment, Healthcare, Travel, Office, Expense). If a field cannot be determined, use null for its value. Respond ONLY with the JSON object. Example: {"date": "2024-01-15", "cost": 25.50, "vendor": "Example Store", "location": "Anytown", "type": "Shopping"}`;
+
+        const response = await openai.chat.completions.create({
+            model: modelName,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        {
+                            type: 'image_url',
+                            image_url: { url: dataUrl },
+                        },
+                    ],
+                },
+            ],
+            // Optional: Add max_tokens if needed
+            // max_tokens: 300,
+        });
+
+        const responseText = response.choices[0].message.content;
+        console.log("OpenAI API Response Text:", responseText);
+
+        try {
+            const jsonString = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            const extractedData = JSON.parse(jsonString);
+
+            const date = extractedData.date && typeof extractedData.date === 'string' && extractedData.date.match(/^\d{4}-\d{2}-\d{2}$/) ? extractedData.date : null;
+            const cost = extractedData.cost && !isNaN(parseFloat(extractedData.cost)) ? parseFloat(extractedData.cost).toFixed(2) : null;
+            const vendor = extractedData.vendor && typeof extractedData.vendor === 'string' ? extractedData.vendor.trim() : null;
+            const location = extractedData.location && typeof extractedData.location === 'string' ? extractedData.location.trim() : null;
+            const type = extractedData.type && typeof extractedData.type === 'string' ? extractedData.type.trim() : 'Expense';
+
+            console.log(`OpenAI Parsed Data: Date: ${date}, Cost: ${cost}, Vendor: ${vendor}, Location: ${location}, Type: ${type}`);
+            return { type, date, vendor, location, cost, method: 'openai' };
+        } catch (parseError) {
+            console.error("Failed to parse JSON response from OpenAI:", parseError);
+            console.error("Original OpenAI response text:", responseText);
+            console.log("Falling back to built-in OCR...");
+            return processWithBuiltinOCR(filePath, mimeType);
+        }
+    } catch (apiError) {
+        console.error("Error calling OpenAI API:", apiError);
+        console.log("OpenAI API call failed. Falling back to built-in OCR...");
+        return processWithBuiltinOCR(filePath, mimeType);
+    }
+}
+
+/**
+ * Process OCR using Anthropic Claude API
+ * @param {string} filePath - Path to the file
+ * @param {string} mimeType - MIME type of the file
+ * @param {string} apiKey - Anthropic API key
+ * @param {string} modelName - Claude model name (e.g., claude-3-haiku-20240307)
+ * @returns {Promise<Object>} - Extracted data
+ */
+async function processWithClaudeOCR(filePath, mimeType, apiKey, modelName = 'claude-3-haiku-20240307') {
+     // Claude Vision currently requires specific MIME types
+     const supportedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+     if (!supportedMimeTypes.includes(mimeType)) {
+         console.warn(`Claude does not support MIME type ${mimeType}. Falling back to built-in OCR.`);
+         return processWithBuiltinOCR(filePath, mimeType);
+     }
+
+    try {
+        const anthropic = new Anthropic({ apiKey });
+        const base64Image = Buffer.from(fs.readFileSync(filePath)).toString('base64');
+
+        const prompt = `Extract the following details from this receipt image in JSON format: date (YYYY-MM-DD), cost (total amount as number), vendor (store/service name), location (city/address), type (e.g., Groceries, Dining, Transportation, Shopping, Utilities, Entertainment, Healthcare, Travel, Office, Expense). If a field cannot be determined, use null for its value. Respond ONLY with the JSON object. Example: {"date": "2024-01-15", "cost": 25.50, "vendor": "Example Store", "location": "Anytown", "type": "Shopping"}`;
+
+        const msg = await anthropic.messages.create({
+            model: modelName,
+            max_tokens: 1024, // Adjust as needed
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: mimeType,
+                                data: base64Image,
+                            },
+                        },
+                        { type: 'text', text: prompt }
+                    ],
+                },
+                 // Add assistant prefill if needed to guide JSON output
+                 // { role: 'assistant', content: '{' }
+            ],
+        });
+
+        const responseText = msg.content[0].text;
+        console.log("Claude API Response Text:", responseText);
+
+        try {
+            // Claude might sometimes wrap the JSON, try to extract it
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            const jsonString = jsonMatch ? jsonMatch[0] : responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            const extractedData = JSON.parse(jsonString);
+
+            const date = extractedData.date && typeof extractedData.date === 'string' && extractedData.date.match(/^\d{4}-\d{2}-\d{2}$/) ? extractedData.date : null;
+            const cost = extractedData.cost && !isNaN(parseFloat(extractedData.cost)) ? parseFloat(extractedData.cost).toFixed(2) : null;
+            const vendor = extractedData.vendor && typeof extractedData.vendor === 'string' ? extractedData.vendor.trim() : null;
+            const location = extractedData.location && typeof extractedData.location === 'string' ? extractedData.location.trim() : null;
+            const type = extractedData.type && typeof extractedData.type === 'string' ? extractedData.type.trim() : 'Expense';
+
+            console.log(`Claude Parsed Data: Date: ${date}, Cost: ${cost}, Vendor: ${vendor}, Location: ${location}, Type: ${type}`);
+            return { type, date, vendor, location, cost, method: 'claude' };
+        } catch (parseError) {
+            console.error("Failed to parse JSON response from Claude:", parseError);
+            console.error("Original Claude response text:", responseText);
+            console.log("Falling back to built-in OCR...");
+            return processWithBuiltinOCR(filePath, mimeType);
+        }
+    } catch (apiError) {
+        console.error("Error calling Claude API:", apiError);
+        console.log("Claude API call failed. Falling back to built-in OCR...");
+        return processWithBuiltinOCR(filePath, mimeType);
+    }
+}
+
+/**
+ * Process OCR using OpenRouter API (using OpenAI compatible endpoint)
+ * @param {string} filePath - Path to the file
+ * @param {string} mimeType - MIME type of the file
+ * @param {string} apiKey - OpenRouter API key
+ * @param {string} modelName - OpenRouter model name (e.g., openai/gpt-4-vision-preview)
+ * @returns {Promise<Object>} - Extracted data
+ */
+async function processWithOpenRouterOCR(filePath, mimeType, apiKey, modelName = 'openai/gpt-4-vision-preview') {
+     // Note: This assumes the OpenRouter model is OpenAI vision compatible.
+     // Adjust if using a different model type.
+    try {
+        const openai = new OpenAI({
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKey: apiKey,
+            // Optional: Set headers for app identification
+            // defaultHeaders: {
+            //   "HTTP-Referer": $YOUR_SITE_URL, // Optional, for including your app on openrouter.ai rankings.
+            //   "X-Title": $YOUR_SITE_NAME, // Optional. Shows in rankings on openrouter.ai.
+            // },
+        });
+
+        const base64Image = Buffer.from(fs.readFileSync(filePath)).toString('base64');
+        const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+        const prompt = `Extract the following details from this receipt image/document in JSON format: date (YYYY-MM-DD), cost (total amount as number), vendor (store/service name), location (city/address), type (e.g., Groceries, Dining, Transportation, Shopping, Utilities, Entertainment, Healthcare, Travel, Office, Expense). If a field cannot be determined, use null for its value. Respond ONLY with the JSON object. Example: {"date": "2024-01-15", "cost": 25.50, "vendor": "Example Store", "location": "Anytown", "type": "Shopping"}`;
+
+        const response = await openai.chat.completions.create({
+            model: modelName,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        {
+                            type: 'image_url',
+                            image_url: { url: dataUrl },
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const responseText = response.choices[0].message.content;
+        console.log("OpenRouter API Response Text:", responseText);
+
+        try {
+            const jsonString = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            const extractedData = JSON.parse(jsonString);
+
+            const date = extractedData.date && typeof extractedData.date === 'string' && extractedData.date.match(/^\d{4}-\d{2}-\d{2}$/) ? extractedData.date : null;
+            const cost = extractedData.cost && !isNaN(parseFloat(extractedData.cost)) ? parseFloat(extractedData.cost).toFixed(2) : null;
+            const vendor = extractedData.vendor && typeof extractedData.vendor === 'string' ? extractedData.vendor.trim() : null;
+            const location = extractedData.location && typeof extractedData.location === 'string' ? extractedData.location.trim() : null;
+            const type = extractedData.type && typeof extractedData.type === 'string' ? extractedData.type.trim() : 'Expense';
+
+            console.log(`OpenRouter Parsed Data: Date: ${date}, Cost: ${cost}, Vendor: ${vendor}, Location: ${location}, Type: ${type}`);
+            return { type, date, vendor, location, cost, method: 'openrouter' };
+        } catch (parseError) {
+            console.error("Failed to parse JSON response from OpenRouter:", parseError);
+            console.error("Original OpenRouter response text:", responseText);
+            console.log("Falling back to built-in OCR...");
+            return processWithBuiltinOCR(filePath, mimeType);
+        }
+    } catch (apiError) {
+        console.error("Error calling OpenRouter API:", apiError);
+        console.log("OpenRouter API call failed. Falling back to built-in OCR...");
+        return processWithBuiltinOCR(filePath, mimeType);
+    }
+}
+
+
 module.exports = {
     extractTextFromPDF,
     fileToGenerativePart,
@@ -298,5 +509,8 @@ module.exports = {
     findLocationInText,
     findTypeInText,
     processWithBuiltinOCR,
-    processWithGeminiOCR
+    processWithGeminiOCR,
+    processWithOpenAIOCR,
+    processWithClaudeOCR,
+    processWithOpenRouterOCR
 };

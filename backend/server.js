@@ -6,6 +6,9 @@
  * OCR processing of receipts and exporting expenses to Excel.
  */
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -101,7 +104,56 @@ const writeData = (data) => {
     }
 };
 
-// No OCR helper functions needed here - they've been moved to ./utils/ocr.js
+/**
+ * Updates the .env file with new key-value pairs.
+ * IMPORTANT: In a real application, writing to .env via an API endpoint
+ *            is a security risk and should be heavily protected or avoided.
+ * @param {Object} newEnvVars - Object containing keys and values to update/add.
+ */
+const updateEnvFile = (newEnvVars) => {
+    const envFilePath = path.join(__dirname, '.env');
+    let envContent = '';
+
+    // Read existing .env content if it exists
+    if (fs.existsSync(envFilePath)) {
+        envContent = fs.readFileSync(envFilePath, 'utf8');
+    }
+
+    let lines = envContent.split('\n');
+    const updatedKeys = new Set(Object.keys(newEnvVars));
+
+    // Update existing lines or add new ones
+    lines = lines.map(line => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || trimmedLine.startsWith('#')) {
+            return line; // Keep comments and empty lines
+        }
+        const [key] = trimmedLine.split('=');
+        if (newEnvVars.hasOwnProperty(key)) {
+            updatedKeys.delete(key); // Mark key as updated
+            return `${key}=${newEnvVars[key]}`;
+        }
+        return line;
+    });
+
+    // Add any new keys that weren't in the original file
+    updatedKeys.forEach(key => {
+        lines.push(`${key}=${newEnvVars[key]}`);
+    });
+
+    // Write the updated content back to the .env file
+    try {
+        fs.writeFileSync(envFilePath, lines.join('\n'), 'utf8');
+        console.log('.env file updated successfully.');
+        // Reload dotenv to reflect changes in the current process
+        // NOTE: This might not be reliable in all scenarios. A server restart is safer.
+        require('dotenv').config({ override: true });
+        return true;
+    } catch (error) {
+        console.error('Error writing to .env file:', error);
+        return false;
+    }
+};
 
 
 // --- Validation Rules ---
@@ -314,8 +366,9 @@ app.post('/api/test-ocr', upload.single('receipt'), async (req, res) => {
         }
 
         const ocrMethod = req.body.ocrMethod || 'builtin';
-        const apiKey = req.body.apiKey;
-        const modelName = req.body.model;
+        // API Key is retrieved from environment variables on the backend
+        // const apiKey = req.body.apiKey; // No longer passed from frontend
+        const modelName = req.body.model; // Model name can still be passed if needed
 
         console.log(`Testing OCR with method: ${ocrMethod}`);
         console.log(`Processing uploaded file: ${req.file.path} (Type: ${req.file.mimetype})`);
@@ -323,26 +376,71 @@ app.post('/api/test-ocr', upload.single('receipt'), async (req, res) => {
         let result;
 
         // Process with selected OCR method
-        if (ocrMethod === 'gemini') {
-            // Validate API key for Gemini
-            if (!apiKey) {
-                if (req.file && req.file.path) {
-                    fs.unlinkSync(req.file.path);
-                }
-                return res.status(400).json({ message: 'API key is required for Gemini OCR.' });
-            }
+        // Removed duplicate declaration: let apiKey;
+        // Process with selected OCR method - Get API Key from environment
+        let apiKey;
+        switch (ocrMethod) {
+            case 'gemini':
+                apiKey = process.env.GEMINI_API_KEY;
+                break;
+            case 'openai':
+                apiKey = process.env.OPENAI_API_KEY;
+                break;
+            case 'claude':
+                apiKey = process.env.CLAUDE_API_KEY;
+                break;
+            case 'openrouter':
+                apiKey = process.env.OPENROUTER_API_KEY;
+                break;
+            // 'builtin' doesn't need a key
+        }
 
-            // Use Gemini OCR
+        // Validate that the key exists in the environment for non-builtin methods
+        if (ocrMethod !== 'builtin' && (!apiKey || apiKey.startsWith('YOUR_') || apiKey.endsWith('_HERE'))) {
+            console.error(`API key for ${ocrMethod} not found or not set in .env file.`);
+            if (req.file && req.file.path) fs.unlinkSync(req.file.path); // Clean up file
+            return res.status(400).json({ message: `API key for ${ocrMethod} is not configured on the server. Please set it via the Settings page.` });
+        }
+
+        if (ocrMethod === 'gemini') {
+            // Use Gemini OCR (apiKey comes from process.env)
             const visionModelName = modelName || 'gemini-pro-vision';
             console.log(`Using Gemini model: ${visionModelName}`);
-            
             result = await ocrUtils.processWithGeminiOCR(
-                req.file.path, 
+                req.file.path,
+                req.file.mimetype,
+                apiKey, // Use the key fetched from process.env
+                visionModelName
+            );
+        } else if (ocrMethod === 'openai') {
+            console.log('Using OpenAI OCR processing...');
+            const visionModelName = modelName || 'gpt-4-vision-preview'; // Default OpenAI vision model
+            result = await ocrUtils.processWithOpenAIOCR(
+                req.file.path,
                 req.file.mimetype,
                 apiKey,
                 visionModelName
             );
-        } else {
+        } else if (ocrMethod === 'claude') {
+             console.log('Using Claude OCR processing...');
+             const visionModelName = modelName || 'claude-3-haiku-20240307'; // Default Claude vision model
+             result = await ocrUtils.processWithClaudeOCR(
+                 req.file.path,
+                 req.file.mimetype,
+                 apiKey,
+                 visionModelName
+             );
+        } else if (ocrMethod === 'openrouter') {
+             console.log('Using OpenRouter OCR processing...');
+             // Default model might vary, ensure frontend sends one or set a sensible default
+             const visionModelName = modelName || 'openai/gpt-4-vision-preview';
+             result = await ocrUtils.processWithOpenRouterOCR(
+                 req.file.path,
+                 req.file.mimetype,
+                 apiKey,
+                 visionModelName
+             );
+        } else { // Built-in
             // Use built-in OCR
             console.log('Using built-in OCR processing...');
             
@@ -588,6 +686,46 @@ app.get('/api/export-expenses', (req, res) => { /* ... unchanged ... */
     } catch (error) {
         console.error('Error generating Excel export:', error);
         res.status(500).send('Error generating Excel file.');
+    }
+});
+
+/**
+ * POST /api/update-env - Update API keys in the .env file
+ * SECURITY WARNING: This endpoint allows modifying server environment variables
+ * from the frontend. In a production environment, this MUST be secured
+ * with proper authentication and authorization.
+ */
+app.post('/api/update-env', (req, res) => {
+    console.log('POST /api/update-env hit');
+    const {
+        GEMINI_API_KEY,
+        OPENAI_API_KEY,
+        CLAUDE_API_KEY,
+        OPENROUTER_API_KEY
+    } = req.body;
+
+    // Basic validation: Check if at least one key is provided
+    // Allow empty strings to clear keys
+    const keysProvided = Object.values(req.body).some(key => key !== undefined);
+    if (!keysProvided) {
+         return res.status(400).json({ message: 'No API keys provided for update.' });
+    }
+
+
+    const keysToUpdate = {};
+    // Only include keys that were actually present in the request body
+    if (req.body.hasOwnProperty('GEMINI_API_KEY')) keysToUpdate.GEMINI_API_KEY = GEMINI_API_KEY || '';
+    if (req.body.hasOwnProperty('OPENAI_API_KEY')) keysToUpdate.OPENAI_API_KEY = OPENAI_API_KEY || '';
+    if (req.body.hasOwnProperty('CLAUDE_API_KEY')) keysToUpdate.CLAUDE_API_KEY = CLAUDE_API_KEY || '';
+    if (req.body.hasOwnProperty('OPENROUTER_API_KEY')) keysToUpdate.OPENROUTER_API_KEY = OPENROUTER_API_KEY || '';
+
+
+    const success = updateEnvFile(keysToUpdate);
+
+    if (success) {
+        res.json({ message: 'API keys updated successfully. Restart server for changes to take full effect if issues arise.' });
+    } else {
+        res.status(500).json({ message: 'Failed to update API keys on the server.' });
     }
 });
 
