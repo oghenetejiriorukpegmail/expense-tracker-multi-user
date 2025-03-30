@@ -290,6 +290,150 @@ button:active {
     margin-top: 0.5em;
 }
 
+/* --- Trip Management Page Specific Styles --- */
+
+#trip-dashboard {
+    /* Add some overall padding if needed */
+}
+
+/* Layout for Add Trip and Trip List */
+@media (min-width: 992px) { /* Apply side-by-side layout on larger screens */
+    #trip-dashboard {
+        display: flex;
+        gap: 2em;
+        align-items: flex-start; /* Align items to the top */
+    }
+    .trip-actions-container { /* Create a wrapper for the add trip form */
+        flex: 1; /* Take up available space */
+        max-width: 400px; /* Limit width of the add form */
+    }
+    #trip-list-container-wrapper { /* Create a wrapper for the list */
+       flex: 2; /* Take up more space */
+    }
+}
+
+/* Styling for the "Add New Trip" section */
+.trip-actions {
+    background-color: var(--card-bg);
+    padding: 1.5em;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 2em; /* Space below the add form */
+}
+
+.trip-actions h2 { /* Style the heading within the add section */
+    text-align: left;
+    margin-bottom: 1em;
+    font-size: 1.4em;
+    color: var(--primary-dark);
+}
+
+.trip-actions input[type="text"],
+.trip-actions textarea {
+    margin-bottom: 1em; /* Space between inputs */
+}
+
+.trip-actions button {
+    margin-top: 0.5em; /* Space above the button */
+}
+
+/* Styling for the "Your Trips" list container */
+#trip-list-container {
+    margin-top: 1em; /* Add some space above the list heading */
+}
+
+#trip-list-container h3 { /* Style the "Your Trips" heading */
+    margin-bottom: 1em;
+    font-size: 1.4em;
+    color: var(--primary-dark);
+    border-bottom: 2px solid var(--light-bg);
+    padding-bottom: 0.5em;
+}
+
+/* Trip Card Container (replaces ul styling) */
+.trip-card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Responsive grid */
+    gap: 1.5em;
+    padding: 0; /* Remove default ul padding */
+    list-style: none; /* Remove default ul list style */
+}
+
+/* Individual Trip Card Styling */
+.trip-card {
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.2em;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Pushes actions to the bottom */
+    border: 1px solid var(--border-color);
+}
+
+.trip-card:hover {
+    box-shadow: var(--hover-shadow);
+    transform: translateY(-3px);
+}
+
+.trip-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8em;
+}
+
+.trip-card-header h3 {
+    margin: 0;
+    font-size: 1.25em;
+    color: var(--primary-color);
+}
+
+.trip-card-description {
+    color: var(--light-text);
+    margin-bottom: 1em;
+    font-size: 0.95em;
+    flex-grow: 1; /* Allows description to take available space */
+}
+
+.trip-card-actions {
+    margin-top: 1em;
+    border-top: 1px solid var(--light-bg);
+    padding-top: 1em;
+    text-align: right; /* Align button to the right */
+}
+
+.trip-card-actions .view-expenses-link {
+    /* Adjust button styling if needed */
+    padding: 0.6em 1em;
+}
+
+/* Icon Button Styling (for delete) */
+.btn-icon {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    font-size: 1.1em;
+    cursor: pointer;
+    padding: 0.3em;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    line-height: 1;
+    transition: var(--transition);
+}
+
+.btn-icon:hover {
+    color: var(--danger-dark);
+    background-color: rgba(231, 76, 60, 0.1); /* Light red background on hover */
+    transform: none; /* Override default button hover transform */
+}
+
+
+/* --- End Trip Management Styles --- */
+
+
 #expense-list {
     list-style: none;
     padding: 0;

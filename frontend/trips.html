@@ -61,19 +61,24 @@
     <div id="app-content" class="hidden">
         <!-- Removed simple logout button, now part of main nav -->
         <section id="trip-dashboard">
-            <h2>Trip Management</h2>
-            <div class="trip-actions">
-                <input type="text" id="new-trip-name" placeholder="New Trip Name (e.g., Client Visit LA)" required>
-                <textarea id="new-trip-description" placeholder="Optional: Trip Description" rows="2"></textarea>
-                <button id="add-trip-button" class="btn-primary">Add New Trip</button>
+            <!-- No need for the h2 here if it's inside the add section -->
+            <div class="trip-actions-container"> <!-- Wrapper for Add Trip form -->
+                <div class="trip-actions">
+                     <h2>Add New Trip</h2> <!-- Moved heading inside -->
+                    <input type="text" id="new-trip-name" placeholder="New Trip Name (e.g., Client Visit LA)" required>
+                    <textarea id="new-trip-description" placeholder="Optional: Trip Description" rows="2"></textarea>
+                    <button id="add-trip-button" class="btn-primary btn-block">Add New Trip</button> <!-- Added btn-block -->
+                </div>
             </div>
-            <h3>Your Trips</h3>
-            <div id="trip-list-container">
-                <div id="trip-loading" class="loading">Loading trips...</div>
-                <ul id="trip-list">
-                    <!-- Trip items will be added here -->
-                </ul>
-                <div id="no-trips" class="hidden">No trips created yet.</div>
+            <div id="trip-list-container-wrapper"> <!-- Wrapper for Trip List -->
+                <div id="trip-list-container">
+                     <h3>Your Trips</h3> <!-- Moved heading inside -->
+                    <div id="trip-loading" class="loading">Loading trips...</div>
+                    <div id="trip-list" class="trip-card-container"> <!-- Changed ul to div and added class -->
+                        <!-- Trip cards will be added here by JS -->
+                    </div>
+                    <div id="no-trips" class="hidden">No trips created yet.</div>
+                </div>
             </div>
         </section>
 

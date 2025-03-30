@@ -154,21 +154,26 @@ document.addEventListener('DOMContentLoaded', () => {
             noTripsDiv.classList.remove('hidden');
         } else {
             noTripsDiv.classList.add('hidden');
+            // Change the container to a div if needed for flexbox/grid styling later
+            tripListUl.className = 'trip-card-container'; // Add a class for styling
             trips.forEach(trip => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <span>${trip.name} ${trip.description ? `(${trip.description})` : ''}</span>
-                    <button class="btn-small btn-danger delete-trip" data-id="${trip.id}" title="Delete Trip">&times;</button>
+                const card = document.createElement('div');
+                card.className = 'trip-card'; // New class for card styling
+                card.innerHTML = `
+                    <div class="trip-card-header">
+                        <h3>${trip.name}</h3>
+                        <button class="btn-icon delete-trip" data-id="${trip.id}" title="Delete Trip">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    ${trip.description ? `<p class="trip-card-description">${trip.description}</p>` : ''}
+                    <div class="trip-card-actions">
+                        <a href="index.html?trip=${encodeURIComponent(trip.name)}" class="btn-primary view-expenses-link" title="View/Add expenses for ${trip.name}">
+                            <i class="fas fa-list-ul"></i> View Expenses
+                        </a>
+                    </div>
                 `;
-                // Add link to view/add expenses for this trip (linking to index.html with query param)
-                const link = document.createElement('a');
-                link.href = `index.html?trip=${encodeURIComponent(trip.name)}`;
-                link.title = `View/Add expenses for ${trip.name}`;
-                link.innerHTML = `<i class="fas fa-list-ul"></i> View Expenses`;
-                link.classList.add('btn-small', 'view-expenses-link');
-                li.appendChild(link);
-
-                tripListUl.appendChild(li);
+                tripListUl.appendChild(card);
             });
         }
     };
