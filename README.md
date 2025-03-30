@@ -62,9 +62,10 @@ A web application for tracking expenses with automated receipt scanning via AI O
 ## Configuration
 
 Configure OCR settings via the Settings page (`/settings.html`):
-- Choose OCR provider (Tesseract or Gemini)
-- Enter API keys (required for Gemini)
-- Select preferred models (for Gemini)
+- Choose OCR provider (Tesseract, Gemini, OpenAI, Claude, OpenRouter)
+- Enter API keys for the desired AI providers.
+- Select preferred models (where applicable).
+- **Note:** Clicking "Save Settings" updates the API keys stored in the `backend/.env` file on the server. The server reads these keys for OCR processing. Ensure the server process has write permissions to `.env` if running in restricted environments. A server restart might be needed for changes to fully apply in all cases.
 
 ## Technology Stack
 
@@ -72,7 +73,8 @@ Configure OCR settings via the Settings page (`/settings.html`):
 - **Backend**: Node.js, Express
 - **OCR**:
   - Tesseract.js (default, via `utils/ocr.js`)
-  - Google Gemini (via `utils/ocr.js`)
+  - Google Gemini, OpenAI, Claude, OpenRouter (via `utils/ocr.js`)
+- **API Key Storage**: `.env` file on the backend (managed via Settings UI -> `/api/update-env` endpoint)
 - **Data Storage**: JSON file system (`backend/data.json`)
 - **Excel Export**: SheetJS/xlsx
 - **Testing**: Jest

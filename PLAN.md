@@ -36,7 +36,8 @@ The application utilizes the following technology stack:
     *   Storing uploaded images in an `uploads` directory.
     *   **Performing OCR on images and PDFs via the `utils/ocr.js` module, supporting Tesseract.js (built-in) and Google Gemini based on user settings.**
     *   **Generating per-trip Excel export files** (requires `tripName` query param, filename matches trip) using the `xlsx` library.
-*   **OCR:** Logic is encapsulated in `backend/utils/ocr.js`. Supports Tesseract.js for built-in OCR and Google Gemini API (requires user-provided API key).
+*   **OCR:** Logic is encapsulated in `backend/utils/ocr.js`. Supports Tesseract.js (built-in) and AI providers (Gemini, OpenAI, Claude, OpenRouter).
+*   **API Key Management:** Keys for AI OCR providers are stored in `backend/.env` (managed via the Settings UI -> `/api/update-env` endpoint). The `/api/test-ocr` endpoint reads keys from `process.env`. **Warning:** The `/api/update-env` endpoint needs authentication in production.
 *   **Excel Generation:** The `xlsx` library creates the .xlsx file for **per-trip export**.
 *   **Data Storage:** A simple JSON file (`backend/data.json`) is used for data persistence (includes `tripName`).
 *   **Testing:** Jest is used for backend unit testing.
@@ -80,11 +81,11 @@ graph TD
 ```
 
 ## 5. Immediate Improvements (Current Sprint)
-
 1.  **AI OCR Implementation:**
-    *   **(Partially Done - Gemini Implemented)** Replace AI provider simulations with actual API calls (OpenAI, Claude, Open Router remaining).
-    *   Implement secure handling of API keys on the backend (e.g., using environment variables or a secure configuration store instead of passing from frontend).
+    *   **(Done)** Implemented backend logic for Gemini, OpenAI, Claude, and OpenRouter via `utils/ocr.js`.
+    *   **(Done - Hybrid Approach)** Implemented secure handling of API keys using a backend `.env` file, which can be updated via a new (currently unsecured) `/api/update-env` endpoint called from the Settings UI. OCR testing reads keys from `process.env`.
     *   **(Optional) Implement dynamic fetching of available models for each AI provider.**
+
 
 2.  **Export Functionality:**
     *   **(Done) Fix Excel export to generate a proper .xlsx file.**

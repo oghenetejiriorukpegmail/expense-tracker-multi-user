@@ -25,3 +25,6 @@ lerna-debug.log*
 # Optional: Operating System files
 .DS_Store
 Thumbs.db
+
+# Environment variables file
+backend/.env

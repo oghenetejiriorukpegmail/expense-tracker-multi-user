@@ -129,52 +129,101 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function saveSettings(event) {
+    // Make async to handle fetch
+    async function saveSettings(event) {
         event.preventDefault();
         
+        const saveButton = document.querySelector('#settings-form button[type="submit"]');
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+
+        let backendUpdateSuccess = false;
+        let localSaveSuccess = false;
+
+        // 1. Prepare settings object for localStorage and backend
+        const settings = {
+            ocrMethod: ocrMethodSelect.value,
+            saveApiKey: saveApiKeyCheckbox.checked, // Keep track if user wants keys in localStorage
+            openaiModel: document.getElementById('openai-model').value,
+            geminiModel: document.getElementById('gemini-model').value,
+            claudeModel: document.getElementById('claude-model').value,
+            openrouterModel: document.getElementById('openrouter-model').value,
+        };
+
+        // Get current keys from inputs
+        const openaiKey = document.getElementById('openai-api-key').value;
+        const geminiKey = document.getElementById('gemini-api-key').value;
+        const claudeKey = document.getElementById('claude-api-key').value;
+        const openrouterKey = document.getElementById('openrouter-api-key').value;
+
+        // Prepare keys to send to backend for .env update
+        // Send current values regardless of 'saveApiKey' checkbox,
+        // allowing users to update/clear keys in .env via UI
+        const keysForBackend = {
+            OPENAI_API_KEY: openaiKey,
+            GEMINI_API_KEY: geminiKey,
+            CLAUDE_API_KEY: claudeKey,
+            OPENROUTER_API_KEY: openrouterKey,
+        };
+
+        // 2. Attempt to update backend .env file
         try {
-            const settings = {
-                ocrMethod: ocrMethodSelect.value,
-                saveApiKey: saveApiKeyCheckbox.checked
-            };
-            
-            // Save model selections
-            settings.openaiModel = document.getElementById('openai-model').value;
-            settings.geminiModel = document.getElementById('gemini-model').value; // This now includes 'gemini-2.0-flash'
-            settings.claudeModel = document.getElementById('claude-model').value;
-            settings.openrouterModel = document.getElementById('openrouter-model').value;
-            
-            // Only save API keys if checkbox is checked
+            const response = await fetch('/api/update-env', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(keysForBackend),
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || 'Failed to update keys on server');
+            }
+            console.log('Backend .env update response:', result.message);
+            backendUpdateSuccess = true;
+        } catch (error) {
+            console.error('Error updating .env file via API:', error);
+            showToast(`Error saving keys to server: ${error.message}`, 'error');
+        }
+
+        // 3. Update localStorage settings based on checkbox
+        try {
             if (settings.saveApiKey) {
-                const openaiKey = document.getElementById('openai-api-key').value;
-                const geminiKey = document.getElementById('gemini-api-key').value;
-                const claudeKey = document.getElementById('claude-api-key').value;
-                const openrouterKey = document.getElementById('openrouter-api-key').value;
-                
-                if (openaiKey) settings.openaiApiKey = openaiKey;
-                if (geminiKey) settings.geminiApiKey = geminiKey;
-                if (claudeKey) settings.claudeApiKey = claudeKey;
-                if (openrouterKey) settings.openrouterApiKey = openrouterKey;
+                // Save keys to localStorage object if checkbox is checked
+                if (openaiKey) settings.openaiApiKey = openaiKey; else delete settings.openaiApiKey;
+                if (geminiKey) settings.geminiApiKey = geminiKey; else delete settings.geminiApiKey;
+                if (claudeKey) settings.claudeApiKey = claudeKey; else delete settings.claudeApiKey;
+                if (openrouterKey) settings.openrouterApiKey = openrouterKey; else delete settings.openrouterApiKey;
             } else {
-                // Remove API keys from storage if not saving
+                // Ensure API keys are removed from localStorage object if checkbox is unchecked
                 delete settings.openaiApiKey;
                 delete settings.geminiApiKey;
                 delete settings.claudeApiKey;
                 delete settings.openrouterApiKey;
             }
             
-            // Save settings to localStorage
+            // Save the potentially modified settings object to localStorage
             localStorage.setItem('expenseTrackerSettings', JSON.stringify(settings));
-            
-            showToast('Settings saved successfully');
-            
-            // Update UI based on selected method
-            handleOcrMethodChange();
-            
+            localSaveSuccess = true;
+            console.log('Settings saved locally:', settings);
+
         } catch (error) {
-            console.error('Error saving settings:', error);
-            showToast('Failed to save settings', 'error');
+            console.error('Error saving settings to localStorage:', error);
+            showToast('Failed to save settings locally', 'error');
         }
+
+        // 4. Show final status toast and update UI
+        if (backendUpdateSuccess && localSaveSuccess) {
+            showToast('Settings saved successfully!');
+        } else if (localSaveSuccess && !backendUpdateSuccess) {
+            showToast('Settings saved locally, but failed to save to server.', 'warning');
+        } else if (!localSaveSuccess && backendUpdateSuccess) {
+             showToast('Settings saved to server, but failed to save locally.', 'warning');
+        } // If both fail, individual errors were already shown
+
+        handleOcrMethodChange(); // Update UI visibility
+
+        // Re-enable button
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Settings';
     }
     
     // --- Test OCR Functions ---
@@ -194,56 +243,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add OCR method to form data
         formData.append('ocrMethod', selectedMethod);
         
-        // Add API key and model based on selected provider
-        let apiKey = '';
+        // API keys handled backend. Add model based on selected provider.
         let model = '';
-        
         switch (selectedMethod) {
             case 'openai':
-                apiKey = document.getElementById('openai-api-key').value;
                 model = document.getElementById('openai-model').value;
-                if (!apiKey) {
-                    showToast('Please enter an OpenAI API key', 'error');
-                    return;
-                }
-                formData.append('apiKey', apiKey);
                 formData.append('model', model);
                 break;
-                
             case 'gemini':
-                apiKey = document.getElementById('gemini-api-key').value;
-                model = document.getElementById('gemini-model').value; // This now includes 'gemini-2.0-flash'
-                if (!apiKey) {
-                    showToast('Please enter a Gemini API key', 'error');
-                    return;
-                }
-                formData.append('apiKey', apiKey);
+                model = document.getElementById('gemini-model').value;
                 formData.append('model', model);
                 break;
-                
             case 'claude':
-                apiKey = document.getElementById('claude-api-key').value;
                 model = document.getElementById('claude-model').value;
-                if (!apiKey) {
-                    showToast('Please enter a Claude API key', 'error');
-                    return;
-                }
-                formData.append('apiKey', apiKey);
                 formData.append('model', model);
                 break;
-                
             case 'openrouter':
-                apiKey = document.getElementById('openrouter-api-key').value;
                 model = document.getElementById('openrouter-model').value;
-                if (!apiKey) {
-                    showToast('Please enter an Open Router API key', 'error');
-                    return;
-                }
-                formData.append('apiKey', apiKey);
                 formData.append('model', model);
                 break;
+            // 'builtin' doesn't need a model passed
         }
-        
+
         try {
             // Show loading state
             document.querySelector('#test-ocr-form button').textContent = 'Processing...';
@@ -255,11 +276,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
             
+            // Try to parse JSON regardless of status, as error messages might be JSON
+            let result;
+            try {
+                result = await response.json();
+            } catch (jsonError) {
+                // If JSON parsing fails, use the raw text response
+                const textResponse = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, Response: ${textResponse}`);
+            }
+
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                 // Use the message from the parsed JSON error response if available
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
             }
             
-            const result = await response.json();
             console.log('OCR test result:', result);
             
             // Display the results
@@ -274,7 +305,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Error testing OCR:', error);
-            showToast('Failed to test OCR', 'error');
+            // Display the specific error message from the backend or fetch error
+            showToast(`Failed to test OCR: ${error.message}`, 'error');
+            // Optionally clear or hide the results section on error
+            testResults.classList.add('hidden');
         } finally {
             // Reset button state
             document.querySelector('#test-ocr-form button').textContent = 'Test OCR';
