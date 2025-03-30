@@ -46,35 +46,20 @@
     </section>
     <!-- End Auth Section -->
 
-    <nav class="main-nav">
-        <ul id="nav-links">
-            <li id="nav-home"><a href="index.html" class="active"><i class="fas fa-home"></i> Home</a></li>
-            <li id="nav-settings"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
-            <li id="nav-logout" class="hidden"><a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </nav>
+     <nav class="main-nav">
+         <ul id="nav-links">
+             <!-- JS will show/hide based on login -->
+             <li id="nav-trips" class="hidden"><a href="trips.html"><i class="fas fa-route"></i> Trips</a></li>
+             <li id="nav-add-expense" class="hidden"><a href="index.html" class="active"><i class="fas fa-plus-circle"></i> Add Expense</a></li>
+             <li id="nav-settings" class="hidden"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+             <li id="nav-logout" class="hidden"><a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+         </ul>
+     </nav>
 
-    <!-- Main App Content (Hidden when logged out) -->
+     <!-- Main App Content (Hidden when logged out) -->
     <div id="app-content" class="hidden">
 
-        <!-- Trip Management Dashboard -->
-        <section id="trip-dashboard">
-            <h2>Trip Management</h2>
-            <div class="trip-actions">
-                <input type="text" id="new-trip-name" placeholder="New Trip Name (e.g., Client Visit LA)" required>
-                <textarea id="new-trip-description" placeholder="Optional: Trip Description" rows="2"></textarea>
-                <button id="add-trip-button" class="btn-primary">Add New Trip</button>
-            </div>
-            <h3>Your Trips</h3>
-            <div id="trip-list-container">
-                <div id="trip-loading" class="loading">Loading trips...</div>
-                <ul id="trip-list">
-                    <!-- Trip items will be added here -->
-                </ul>
-                <div id="no-trips" class="hidden">No trips created yet.</div>
-            </div>
-        </section>
-        <!-- End Trip Management Dashboard -->
+        <!-- Trip Management Dashboard Removed - Moved to trips.html -->
 
         <hr class="section-divider"> <!-- Add a visual separator -->
 
@@ -88,12 +73,9 @@
         <div id="receipt-upload-step">
             <form id="receipt-upload-form">
                  <div class="form-group">
-                    <label for="tripName">Select Trip (Required):</label>
-                    <select id="tripName" name="tripName" required>
-                        <option value="" disabled selected>-- Select a Trip --</option>
-                        <!-- Options will be populated by JavaScript -->
-                    </select>
-                    <!-- Add a link/button to quickly add a new trip? Maybe later. -->
+                    <label for="tripName">Trip Name (Required):</label>
+                    <input type="text" id="tripName" name="tripName" placeholder="e.g., Business Trip NYC Q1" required>
+                     <small>Manage your trips on the <a href="trips.html">Trips page</a>.</small>
                 </div>
                 <div class="form-group receipt-upload">
                     <label for="receipt">Upload Receipt (Required):</label>

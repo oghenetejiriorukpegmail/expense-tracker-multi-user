@@ -6,33 +6,35 @@ A web application for tracking expenses with automated receipt scanning via AI O
 
 ## Features
 
-✔ **Receipt Processing**
-- Upload receipts (images/PDFs)
+✔ **Receipt Processing** (`index.html`)
+- Upload receipts (images/PDFs) associated with a Trip Name.
 - Automatic extraction of:
   - Date
   - Amount
   - Vendor
   - Location
   - Expense type
+- View list of expenses grouped by trip.
 
-✔ **Trip Classification**
-- Organize expenses by trip name
-- Export trip expenses to Excel (.xlsx) (Requires login)
-- View grouped by trip
+✔ **Trip Management** (`trips.html`)
+- Create, view, and delete Trips.
+- Link to view/add expenses for a specific trip.
+- Export trip expenses to Excel (.xlsx) (Requires login).
 
-✔ **Multiple OCR Options**
+✔ **Multiple OCR Options** (`settings.html`)
 - Built-in Tesseract.js (no API key needed)
 - Support for AI providers:
   - OpenAI GPT Vision (Implemented)
   - Google Gemini (Implemented)
   - Claude (Implemented)
   - OpenRouter (Implemented)
+- Test OCR functionality.
 
 ✔ **Multi-User Support**
 - User Registration & Login
 - Secure password hashing (bcrypt)
 - JWT-based authentication
-- Expenses isolated per user
+- Expenses and Trips isolated per user
 
 ✔ **User Interface**
 - Responsive mobile-friendly design
@@ -78,11 +80,11 @@ A web application for tracking expenses with automated receipt scanning via AI O
     The SQLite database (`expenses.db`) will be created automatically in the `backend` directory on first run.
 
 5.  **Access the app**:
-    Open `http://localhost:3000` in your browser. Register a new user or log in.
+    Open `http://localhost:3000` in your browser. Register a new user or log in. You will be directed to the Trip Management page (`trips.html`) after login.
 
 ## Configuration
 
-- **User Accounts**: Register and log in via the UI. Each user's expenses are kept separate.
+- **User Accounts**: Register and log in via the UI. Each user's expenses and trips are kept separate.
 - **OCR Settings**: Configure OCR settings via the Settings page (`/settings.html`) after logging in:
   - Choose OCR provider (Tesseract, Gemini, OpenAI, Claude, OpenRouter).
   - Enter API keys for the desired AI providers. These keys are saved server-side in the `backend/.env` file via the `/api/update-env` endpoint (requires login).
@@ -91,7 +93,7 @@ A web application for tracking expenses with automated receipt scanning via AI O
 
 ## Technology Stack
 
-- **Frontend**: HTML5, CSS3, JavaScript
+- **Frontend**: HTML5, CSS3, JavaScript (`script.js`, `settings.js`, `trips.js`)
 - **Backend**: Node.js, Express
 - **Database**: SQLite (`backend/expenses.db`)
 - **Authentication**: JWT (`jsonwebtoken`), Password Hashing (`bcrypt`)

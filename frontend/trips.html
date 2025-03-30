@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Management - Expense Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <h1>Trip Management</h1>
+
+    <!-- Auth Section (Copied for simplicity) -->
+    <section id="auth-section"> <!-- Start visible, JS will hide if logged in -->
+        <div id="login-form-container">
+            <h2>Login</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-username">Username:</label>
+                    <input type="text" id="login-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password:</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <button type="submit" class="btn-block">Login</button>
+                <p>Don't have an account? <a href="#" id="show-register">Register here</a></p>
+            </form>
+        </div>
+
+        <div id="register-form-container" class="hidden">
+            <h2>Register</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="register-username">Username:</label>
+                    <input type="text" id="register-username" name="username" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password:</label>
+                    <input type="password" id="register-password" name="password" required minlength="6">
+                </div>
+                <button type="submit" class="btn-block">Register</button>
+                <p>Already have an account? <a href="#" id="show-login">Login here</a></p>
+            </form>
+        </div>
+    </section>
+    <!-- End Auth Section -->
+
+    <nav class="main-nav">
+        <ul id="nav-links">
+            <!-- Navigation links will be updated by JS based on login state -->
+            <li id="nav-trips"><a href="trips.html" class="active"><i class="fas fa-route"></i> Trips</a></li>
+            <li id="nav-add-expense"><a href="index.html"><i class="fas fa-plus-circle"></i> Add Expense</a></li>
+            <li id="nav-settings"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+            <li id="nav-logout" class="hidden"><a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main App Content (Trip Dashboard will go here) -->
+    <div id="app-content" class="hidden">
+        <section id="trip-dashboard">
+            <h2>Trip Management</h2>
+            <div class="trip-actions">
+                <input type="text" id="new-trip-name" placeholder="New Trip Name (e.g., Client Visit LA)" required>
+                <textarea id="new-trip-description" placeholder="Optional: Trip Description" rows="2"></textarea>
+                <button id="add-trip-button" class="btn-primary">Add New Trip</button>
+            </div>
+            <h3>Your Trips</h3>
+            <div id="trip-list-container">
+                <div id="trip-loading" class="loading">Loading trips...</div>
+                <ul id="trip-list">
+                    <!-- Trip items will be added here -->
+                </ul>
+                <div id="no-trips" class="hidden">No trips created yet.</div>
+            </div>
+        </section>
+    </div>
+    <!-- End Main App Content -->
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <span id="toast-message"></span>
+    </div>
+
+    <script src="trips.js"></script> <!-- Link to new JS file -->
+</body>
+</html>

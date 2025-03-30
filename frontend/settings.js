@@ -78,12 +78,20 @@ document.addEventListener('DOMContentLoaded', () => {
             authSection.classList.add('hidden');
             appContent.classList.remove('hidden');
             navLogout.classList.remove('hidden');
+            // Update nav links for logged-in state
+            document.getElementById('nav-trips')?.classList.remove('hidden');
+            document.getElementById('nav-add-expense')?.classList.remove('hidden');
+            document.getElementById('nav-settings')?.classList.remove('hidden');
         } else {
             authSection.classList.remove('hidden');
             appContent.classList.add('hidden');
             navLogout.classList.add('hidden');
             loginFormContainer.classList.remove('hidden');
             registerFormContainer.classList.add('hidden');
+            // Update nav links for logged-out state (optional: hide them?)
+            document.getElementById('nav-trips')?.classList.add('hidden');
+            document.getElementById('nav-add-expense')?.classList.add('hidden');
+            document.getElementById('nav-settings')?.classList.add('hidden');
         }
     };
 

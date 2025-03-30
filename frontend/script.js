@@ -33,17 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.getElementById('nav-links');
     const navLogout = document.getElementById('nav-logout');
     const logoutButton = document.getElementById('logout-button');
-    // Trip Dashboard elements
-    const tripDashboard = document.getElementById('trip-dashboard');
-    const newTripNameInput = document.getElementById('new-trip-name');
-    const newTripDescriptionInput = document.getElementById('new-trip-description');
-    const addTripButton = document.getElementById('add-trip-button');
-    const tripListContainer = document.getElementById('trip-list-container');
-    const tripLoadingIndicator = document.getElementById('trip-loading');
-    const tripListUl = document.getElementById('trip-list');
-    const noTripsDiv = document.getElementById('no-trips');
-    // Expense form trip name (will become select)
-    const tripNameSelect = document.getElementById('tripName'); // Assuming existing ID, will change input to select later
+    // Trip Dashboard elements removed - Moved to trips.js
+    // Expense form trip name (now text input again)
+    const tripNameInput = document.getElementById('tripName');
 
     // Add loading overlay to the body
     const loadingOverlay = document.createElement('div');
@@ -96,7 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
             authSection.classList.add('hidden');
             appContent.classList.remove('hidden');
             navLogout.classList.remove('hidden');
-            // Optionally hide login/register links if they exist in nav
+            // Update nav links for logged-in state
+            document.getElementById('nav-trips')?.classList.remove('hidden');
+            document.getElementById('nav-add-expense')?.classList.remove('hidden');
+            document.getElementById('nav-settings')?.classList.remove('hidden');
         } else {
             // Show auth forms, hide app content
             authSection.classList.remove('hidden');
@@ -105,6 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Ensure login form is shown by default when logged out
             loginFormContainer.classList.remove('hidden');
             registerFormContainer.classList.add('hidden');
+            // Update nav links for logged-out state (optional: hide them?)
+            document.getElementById('nav-trips')?.classList.add('hidden');
+            document.getElementById('nav-add-expense')?.classList.add('hidden');
+            document.getElementById('nav-settings')?.classList.add('hidden');
         }
         // Clear expense list if logged out
         if (!loggedIn) {
@@ -277,8 +276,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // *** ADDED: Parse the JSON response into the expenses variable ***
                 expenses = await response.json();
-
-            expenseList.innerHTML = ''; // Clear current list
+                // Removed populateTripDropdown call - no longer needed here
+   
+               expenseList.innerHTML = ''; // Clear current list
             const noExpensesDiv = document.getElementById('no-expenses');
 
             if (expenses.length === 0) {
@@ -553,144 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Trip Management Functions ---
-    const fetchAndDisplayTrips = async () => {
-        if (!isLoggedIn()) return;
-        tripLoadingIndicator.style.display = 'block';
-        noTripsDiv.classList.add('hidden');
-        tripListUl.innerHTML = '';
-
-        try {
-            const response = await fetchWithAuth('/api/trips');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const trips = await response.json();
-            renderTripList(trips);
-            populateTripDropdown(trips); // Populate dropdown in expense form
-        } catch (error) {
-            console.error('Error fetching trips:', error);
-            showToast('Failed to load trips', 'error');
-            noTripsDiv.textContent = 'Error loading trips.';
-            noTripsDiv.classList.remove('hidden');
-        } finally {
-            tripLoadingIndicator.style.display = 'none';
-        }
-    };
-
-    const renderTripList = (trips) => {
-        tripListUl.innerHTML = ''; // Clear existing list
-        if (trips.length === 0) {
-            noTripsDiv.textContent = 'No trips created yet.';
-            noTripsDiv.classList.remove('hidden');
-        } else {
-            noTripsDiv.classList.add('hidden');
-            trips.forEach(trip => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <span>${trip.name} ${trip.description ? `(${trip.description})` : ''}</span>
-                    <button class="btn-small btn-danger delete-trip" data-id="${trip.id}" title="Delete Trip">&times;</button>
-                `;
-                tripListUl.appendChild(li);
-            });
-        }
-    };
-
-    const handleAddTrip = async () => {
-        if (!isLoggedIn()) return;
-        const name = newTripNameInput.value.trim();
-        const description = newTripDescriptionInput.value.trim();
-
-        if (!name) {
-            showToast('Please enter a trip name.', 'error');
-            newTripNameInput.focus();
-            return;
-        }
-
-        addTripButton.disabled = true;
-        addTripButton.textContent = 'Adding...';
-
-        try {
-            const response = await fetchWithAuth('/api/trips', {
-                method: 'POST',
-                body: { name, description } // fetchWithAuth handles stringify
-            });
-            const result = await response.json(); // Try parsing JSON even on error
-            if (!response.ok) {
-                throw new Error(result.message || `HTTP error! status: ${response.status}`);
-            }
-            showToast('Trip added successfully!');
-            newTripNameInput.value = '';
-            newTripDescriptionInput.value = '';
-            await fetchAndDisplayTrips(); // Refresh trip list and dropdown
-        } catch (error) {
-            console.error('Error adding trip:', error);
-            showToast(error.message || 'Failed to add trip.', 'error');
-        } finally {
-            addTripButton.disabled = false;
-            addTripButton.textContent = 'Add New Trip';
-        }
-    };
-
-    const handleDeleteTrip = async (tripId) => {
-        if (!isLoggedIn() || !tripId) return;
-
-        // Optional: Add confirmation dialog here
-        if (!confirm(`Are you sure you want to delete this trip? This cannot be undone.`)) {
-            return;
-        }
-
-        showLoadingOverlay(); // Show overlay during delete
-        try {
-            const response = await fetchWithAuth(`/api/trips/${tripId}`, { method: 'DELETE' });
-            const result = await response.json(); // Try parsing JSON even on error
-            if (!response.ok) {
-                 throw new Error(result.message || `HTTP error! status: ${response.status}`);
-            }
-            showToast('Trip deleted successfully.');
-            await fetchAndDisplayTrips(); // Refresh trip list and dropdown
-            // Also refresh expense list in case expenses were implicitly deleted or need re-categorization (if implemented)
-            await fetchAndDisplayExpenses();
-        } catch (error) {
-            console.error('Error deleting trip:', error);
-             if (error.message !== 'Authentication required') { // Avoid duplicate toast
-                showToast(error.message || 'Failed to delete trip.', 'error');
-            }
-        } finally {
-            hideLoadingOverlay();
-        }
-    };
-
-    const populateTripDropdown = (trips) => {
-        // Find the select element in the expense form section
-        const expenseTripSelect = document.querySelector('#receipt-upload-step #tripName');
-        if (!expenseTripSelect) {
-            console.error("Could not find trip name select element in expense form.");
-            return;
-        }
-
-        // Store current value if editing, to re-select later if possible
-        const currentSelectedValue = expenseTripSelect.value;
-
-        // Clear existing options except the placeholder
-        expenseTripSelect.innerHTML = '<option value="" disabled selected>-- Select a Trip --</option>';
-
-        if (trips && trips.length > 0) {
-            trips.forEach(trip => {
-                const option = document.createElement('option');
-                option.value = trip.name;
-                option.textContent = trip.name;
-                expenseTripSelect.appendChild(option);
-            });
-            // Try to re-select the previously selected value
-            if (currentSelectedValue) {
-                expenseTripSelect.value = currentSelectedValue;
-            }
-        } else {
-            // Optionally disable the select if there are no trips
-            // expenseTripSelect.disabled = true;
-        }
-    };
+    // --- Trip Management Functions Removed - Moved to trips.js ---
 
     // --- Utility Functions ---
     const formatDate = (dateString) => {
@@ -954,14 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Trip Management Listeners
-    addTripButton.addEventListener('click', handleAddTrip);
-    tripListUl.addEventListener('click', (event) => { // Delegated listener for delete buttons
-        if (event.target.classList.contains('delete-trip')) {
-            const tripId = event.target.dataset.id;
-            handleDeleteTrip(tripId);
-        }
-    });
+    // Trip Management Listeners Removed - Moved to trips.js
 
     // Auth form listeners
     loginForm.addEventListener('submit', handleLogin);
@@ -1014,14 +870,13 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.delete('receipt');
         }
 
-        // Explicitly add the Trip Name from the SELECT element
-        // const tripNameInput = document.getElementById('tripName'); // This is now a select
-        if (tripNameSelect && tripNameSelect.value) {
-            formData.set('tripName', tripNameSelect.value);
+        // Explicitly add the Trip Name from the text input element
+        const tripNameValue = tripNameInput.value.trim(); // Use the text input variable
+        if (tripNameValue) {
+            formData.set('tripName', tripNameValue);
         } else {
-             // If no trip is selected (should be prevented by 'required' attribute on select),
-             // maybe default or let backend validation handle it.
-             formData.delete('tripName'); // Or set to a default like 'Uncategorized' if needed
+             // This case should ideally be caught by frontend validation, but as fallback:
+             formData.delete('tripName'); // Or set to 'Uncategorized' if that's the desired default
         }
 
         if (currentExpenseId) {
@@ -1051,7 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUIForAuthState();
     if (isLoggedIn()) {
         fetchAndDisplayExpenses(); // Fetch expenses only if logged in
-        fetchAndDisplayTrips(); // Fetch trips only if logged in
+        // fetchAndDisplayTrips(); // Removed - Trips are handled on trips.js
     } else {
         resetForm(); // Reset form if not logged in
     }
