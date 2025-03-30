@@ -33,6 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.getElementById('nav-links');
     const navLogout = document.getElementById('nav-logout');
     const logoutButton = document.getElementById('logout-button');
+    // Trip Dashboard elements
+    const tripDashboard = document.getElementById('trip-dashboard');
+    const newTripNameInput = document.getElementById('new-trip-name');
+    const newTripDescriptionInput = document.getElementById('new-trip-description');
+    const addTripButton = document.getElementById('add-trip-button');
+    const tripListContainer = document.getElementById('trip-list-container');
+    const tripLoadingIndicator = document.getElementById('trip-loading');
+    const tripListUl = document.getElementById('trip-list');
+    const noTripsDiv = document.getElementById('no-trips');
+    // Expense form trip name (will become select)
+    const tripNameSelect = document.getElementById('tripName'); // Assuming existing ID, will change input to select later
 
     // Add loading overlay to the body
     const loadingOverlay = document.createElement('div');
@@ -264,6 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Handle other non-auth errors here.
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
+                // *** ADDED: Parse the JSON response into the expenses variable ***
+                expenses = await response.json();
 
             expenseList.innerHTML = ''; // Clear current list
             const noExpensesDiv = document.getElementById('no-expenses');
@@ -540,6 +553,145 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- Trip Management Functions ---
+    const fetchAndDisplayTrips = async () => {
+        if (!isLoggedIn()) return;
+        tripLoadingIndicator.style.display = 'block';
+        noTripsDiv.classList.add('hidden');
+        tripListUl.innerHTML = '';
+
+        try {
+            const response = await fetchWithAuth('/api/trips');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const trips = await response.json();
+            renderTripList(trips);
+            populateTripDropdown(trips); // Populate dropdown in expense form
+        } catch (error) {
+            console.error('Error fetching trips:', error);
+            showToast('Failed to load trips', 'error');
+            noTripsDiv.textContent = 'Error loading trips.';
+            noTripsDiv.classList.remove('hidden');
+        } finally {
+            tripLoadingIndicator.style.display = 'none';
+        }
+    };
+
+    const renderTripList = (trips) => {
+        tripListUl.innerHTML = ''; // Clear existing list
+        if (trips.length === 0) {
+            noTripsDiv.textContent = 'No trips created yet.';
+            noTripsDiv.classList.remove('hidden');
+        } else {
+            noTripsDiv.classList.add('hidden');
+            trips.forEach(trip => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${trip.name} ${trip.description ? `(${trip.description})` : ''}</span>
+                    <button class="btn-small btn-danger delete-trip" data-id="${trip.id}" title="Delete Trip">&times;</button>
+                `;
+                tripListUl.appendChild(li);
+            });
+        }
+    };
+
+    const handleAddTrip = async () => {
+        if (!isLoggedIn()) return;
+        const name = newTripNameInput.value.trim();
+        const description = newTripDescriptionInput.value.trim();
+
+        if (!name) {
+            showToast('Please enter a trip name.', 'error');
+            newTripNameInput.focus();
+            return;
+        }
+
+        addTripButton.disabled = true;
+        addTripButton.textContent = 'Adding...';
+
+        try {
+            const response = await fetchWithAuth('/api/trips', {
+                method: 'POST',
+                body: { name, description } // fetchWithAuth handles stringify
+            });
+            const result = await response.json(); // Try parsing JSON even on error
+            if (!response.ok) {
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+            showToast('Trip added successfully!');
+            newTripNameInput.value = '';
+            newTripDescriptionInput.value = '';
+            await fetchAndDisplayTrips(); // Refresh trip list and dropdown
+        } catch (error) {
+            console.error('Error adding trip:', error);
+            showToast(error.message || 'Failed to add trip.', 'error');
+        } finally {
+            addTripButton.disabled = false;
+            addTripButton.textContent = 'Add New Trip';
+        }
+    };
+
+    const handleDeleteTrip = async (tripId) => {
+        if (!isLoggedIn() || !tripId) return;
+
+        // Optional: Add confirmation dialog here
+        if (!confirm(`Are you sure you want to delete this trip? This cannot be undone.`)) {
+            return;
+        }
+
+        showLoadingOverlay(); // Show overlay during delete
+        try {
+            const response = await fetchWithAuth(`/api/trips/${tripId}`, { method: 'DELETE' });
+            const result = await response.json(); // Try parsing JSON even on error
+            if (!response.ok) {
+                 throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+            showToast('Trip deleted successfully.');
+            await fetchAndDisplayTrips(); // Refresh trip list and dropdown
+            // Also refresh expense list in case expenses were implicitly deleted or need re-categorization (if implemented)
+            await fetchAndDisplayExpenses();
+        } catch (error) {
+            console.error('Error deleting trip:', error);
+             if (error.message !== 'Authentication required') { // Avoid duplicate toast
+                showToast(error.message || 'Failed to delete trip.', 'error');
+            }
+        } finally {
+            hideLoadingOverlay();
+        }
+    };
+
+    const populateTripDropdown = (trips) => {
+        // Find the select element in the expense form section
+        const expenseTripSelect = document.querySelector('#receipt-upload-step #tripName');
+        if (!expenseTripSelect) {
+            console.error("Could not find trip name select element in expense form.");
+            return;
+        }
+
+        // Store current value if editing, to re-select later if possible
+        const currentSelectedValue = expenseTripSelect.value;
+
+        // Clear existing options except the placeholder
+        expenseTripSelect.innerHTML = '<option value="" disabled selected>-- Select a Trip --</option>';
+
+        if (trips && trips.length > 0) {
+            trips.forEach(trip => {
+                const option = document.createElement('option');
+                option.value = trip.name;
+                option.textContent = trip.name;
+                expenseTripSelect.appendChild(option);
+            });
+            // Try to re-select the previously selected value
+            if (currentSelectedValue) {
+                expenseTripSelect.value = currentSelectedValue;
+            }
+        } else {
+            // Optionally disable the select if there are no trips
+            // expenseTripSelect.disabled = true;
+        }
+    };
+
     // --- Utility Functions ---
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -671,8 +823,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'claude': apiKey = settings.claudeApiKey; model = settings.claudeModel || 'claude-3-opus'; if (!apiKey) { showToast('Claude API key not found.', 'error'); hideLoadingOverlay(); hideLoading(); return; } processFormData.append('apiKey', apiKey); processFormData.append('model', model); break;
                 case 'openrouter': apiKey = settings.openrouterApiKey; model = settings.openrouterModel || 'anthropic/claude-3-opus'; if (!apiKey) { showToast('Open Router API key not found.', 'error'); hideLoadingOverlay(); hideLoading(); return; } processFormData.append('apiKey', apiKey); processFormData.append('model', model); break;
             }
+            console.log("processReceipt: Calling fetchWithAuth for /api/test-ocr"); // Log before fetch
             // Use fetchWithAuth (even though route might not be protected yet, for consistency)
             const response = await fetchWithAuth('/api/test-ocr', { method: 'POST', body: processFormData });
+            console.log("processReceipt: Received response status:", response.status); // Log response status
             if (!response.ok) {
                 // fetchWithAuth handles 401/403
                 if (response.status !== 401 && response.status !== 403) {
@@ -683,10 +837,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const result = await response.json();
             console.log('Receipt processed:', result);
+            console.log("processReceipt: Checking result and calling showEditStep..."); // Log before conditional
             if (result.type || result.date || result.cost) {
+                console.log("processReceipt: Result has data, calling showEditStep with result."); // Log if calling with data
                 showEditStep(result); // Pass the result object directly
                 showToast('Receipt processed successfully! Please review.');
             } else {
+                console.log("processReceipt: Result is empty, calling showEditStep with empty object."); // Log if calling with empty object
                 showEditStep({});
                 showToast('Could not extract details. Please fill manually.', 'warning');
             }
@@ -797,6 +954,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Trip Management Listeners
+    addTripButton.addEventListener('click', handleAddTrip);
+    tripListUl.addEventListener('click', (event) => { // Delegated listener for delete buttons
+        if (event.target.classList.contains('delete-trip')) {
+            const tripId = event.target.dataset.id;
+            handleDeleteTrip(tripId);
+        }
+    });
+
     // Auth form listeners
     loginForm.addEventListener('submit', handleLogin);
     registerForm.addEventListener('submit', handleRegister);
@@ -848,12 +1014,14 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.delete('receipt');
         }
 
-        // Explicitly add the Trip Name from the main page input
-        const tripNameInput = document.getElementById('tripName');
-        if (tripNameInput && tripNameInput.value) {
-            formData.set('tripName', tripNameInput.value);
+        // Explicitly add the Trip Name from the SELECT element
+        // const tripNameInput = document.getElementById('tripName'); // This is now a select
+        if (tripNameSelect && tripNameSelect.value) {
+            formData.set('tripName', tripNameSelect.value);
         } else {
-             formData.delete('tripName');
+             // If no trip is selected (should be prevented by 'required' attribute on select),
+             // maybe default or let backend validation handle it.
+             formData.delete('tripName'); // Or set to a default like 'Uncategorized' if needed
         }
 
         if (currentExpenseId) {
@@ -883,6 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUIForAuthState();
     if (isLoggedIn()) {
         fetchAndDisplayExpenses(); // Fetch expenses only if logged in
+        fetchAndDisplayTrips(); // Fetch trips only if logged in
     } else {
         resetForm(); // Reset form if not logged in
     }

@@ -7,6 +7,9 @@ backend/uploads/
 # Expense data file
 backend/data.json
 
+# Database Files
+backend/expenses.db
+
 # Log files
 *.log
 npm-debug.log*

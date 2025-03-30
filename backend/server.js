@@ -253,6 +253,82 @@ app.post('/api/auth/login', [
 // --- End Auth Routes ---
 
 
+// --- Trip API Routes (Protected) ---
+
+// GET /api/trips - Fetch all trips for the logged-in user
+app.get('/api/trips', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    console.log(`GET /api/trips hit for user ${userId}`);
+
+    const sql = "SELECT id, name, description, createdAt FROM trips WHERE user_id = ? ORDER BY name ASC";
+    db.all(sql, [userId], (err, rows) => {
+        if (err) {
+            console.error(`Error fetching trips for user ${userId}:`, err.message);
+            return res.status(500).json({ message: 'Failed to fetch trips.' });
+        }
+        res.json(rows);
+    });
+});
+
+// POST /api/trips - Create a new trip for the logged-in user
+app.post('/api/trips', authenticateToken, [
+    body('name').notEmpty().withMessage('Trip name is required').trim().escape(),
+    body('description').optional().trim().escape()
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    const userId = req.user.id;
+    const { name, description } = req.body;
+    console.log(`POST /api/trips hit for user ${userId} with name "${name}"`);
+
+    const sql = "INSERT INTO trips (user_id, name, description) VALUES (?, ?, ?)";
+    db.run(sql, [userId, name, description || null], function(err) {
+        if (err) {
+            // Check for unique constraint violation
+            if (err.message.includes('UNIQUE constraint failed: trips.user_id, trips.name')) {
+                console.warn(`Trip creation failed for user ${userId}: Trip name "${name}" already exists.`);
+                return res.status(400).json({ message: `Trip name "${name}" already exists.` });
+            }
+            console.error(`Error creating trip for user ${userId}:`, err.message);
+            return res.status(500).json({ message: 'Failed to create trip.' });
+        }
+        const newTripId = this.lastID;
+        console.log(`Trip "${name}" created with ID ${newTripId} for user ${userId}`);
+        res.status(201).json({ message: 'Trip created successfully', trip: { id: newTripId, name: name, description: description || null } });
+    });
+});
+
+// DELETE /api/trips/:id - Delete a trip for the logged-in user
+app.delete('/api/trips/:id', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    const tripId = req.params.id;
+    console.log(`DELETE /api/trips/${tripId} hit for user ${userId}`);
+
+    // Optional: Add logic here to check if expenses are associated with this trip
+    // and decide whether to prevent deletion or delete associated expenses.
+    // For now, we just delete the trip entry.
+
+    const sql = "DELETE FROM trips WHERE id = ? AND user_id = ?";
+    db.run(sql, [tripId, userId], function(err) {
+        if (err) {
+            console.error(`Error deleting trip ${tripId} for user ${userId}:`, err.message);
+            return res.status(500).json({ message: 'Failed to delete trip.' });
+        }
+        if (this.changes === 0) {
+            // Trip not found or not owned by user
+            return res.status(404).json({ message: 'Trip not found or you do not have permission to delete it.' });
+        }
+        console.log(`Trip ${tripId} deleted successfully for user ${userId}`);
+        res.json({ message: 'Trip deleted successfully.' });
+    });
+});
+
+// --- End Trip API Routes ---
+
+
 // --- Expense API Routes (Protected) ---
 
 // Apply authentication middleware to this route

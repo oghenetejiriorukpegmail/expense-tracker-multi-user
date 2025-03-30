@@ -33,6 +33,25 @@ const initializeDatabase = () => {
             }
         });
 
+        // Create trips table
+        db.run(`
+            CREATE TABLE IF NOT EXISTS trips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                UNIQUE(user_id, name) -- Ensure trip names are unique per user
+            )
+        `, (err) => {
+            if (err) {
+                console.error('Error creating trips table:', err.message);
+            } else {
+                console.log('Trips table checked/created successfully.');
+            }
+        });
+
         // Create expenses table
         db.run(`
             CREATE TABLE IF NOT EXISTS expenses (

@@ -1,11 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Initial Auth Check
-    updateUIForAuthState(); // Show login or app content immediately
-
-    // DOM Elements
+    // DOM Elements (Declared first)
     const settingsForm = document.getElementById('settings-form');
     const ocrMethodSelect = document.getElementById('ocr-method');
-    // Auth elements (assuming IDs match index.html)
     const authSection = document.getElementById('auth-section');
     const loginFormContainer = document.getElementById('login-form-container');
     const registerFormContainer = document.getElementById('register-form-container');
@@ -17,9 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.getElementById('nav-links');
     const navLogout = document.getElementById('nav-logout');
     const logoutButton = document.getElementById('logout-button');
-    // Settings specific elements
     const aiSettings = document.getElementById('ai-settings');
-    const apiKeyInput = document.getElementById('api-key');
+    const apiKeyInput = document.getElementById('api-key'); // Note: ID 'api-key' might be generic, ensure it's correct
     const saveApiKeyCheckbox = document.getElementById('save-api-key');
     const testOcrSection = document.getElementById('test-ocr-section');
     const testOcrForm = document.getElementById('test-ocr-form');
@@ -27,45 +22,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
 
-    // Auth state
+    // Auth state variables
     let authToken = null;
-    // let currentUser = null; // Already declared below
-
-    // --- Auth Token Helpers (Duplicated from script.js - consider shared file) ---
     let currentUser = null;
 
+    // Initial Auth Check
+    updateUIForAuthState(); // Show login or app content immediately
+
+    // Auth state (Moved to top)
+    // let authToken = null; // Removed duplicate declaration
+    // let currentUser = null; // Already declared below - REMOVING THIS LINE
+ 
     // --- Auth Token Helpers (Duplicated from script.js - consider shared file) ---
-    const saveToken = (token, user) => {
+    // let currentUser = null; // Removed duplicate declaration
+
+    // --- Auth Token Helpers (Duplicated from script.js - consider shared file) ---
+    function saveToken(token, user) { // Changed const to function
         localStorage.setItem('authToken', token);
         localStorage.setItem('currentUser', JSON.stringify(user));
         authToken = token;
         currentUser = user;
     };
 
-    const getToken = () => {
+    function getToken() { // Changed const to function
         authToken = localStorage.getItem('authToken');
         const userString = localStorage.getItem('currentUser');
         currentUser = userString ? JSON.parse(userString) : null;
         return authToken;
     };
 
-    const clearToken = () => {
+    function clearToken() { // Changed const to function
         localStorage.removeItem('authToken');
         localStorage.removeItem('currentUser');
         authToken = null;
         currentUser = null;
     };
 
-    const isLoggedIn = () => {
+    function isLoggedIn() { // Changed const to function
         return !!getToken();
     };
 
     // --- UI Update Function (Duplicated from script.js - consider shared file) ---
-    const updateUIForAuthState = () => {
+    function updateUIForAuthState() { // Changed const to function
         const loggedIn = isLoggedIn();
-        console.log("Settings: Updating UI for auth state:", loggedIn);
+        console.log("Settings: updateUIForAuthState called. Logged in:", loggedIn);
+        console.log("Settings: Finding elements -> #auth-section:", authSection, "#app-content:", appContent);
+
+        if (!authSection || !appContent) {
+            console.error("Settings: Could not find authSection or appContent elements!");
+            return;
+        }
 
         if (loggedIn) {
+            console.log("Settings: Showing app content, hiding auth.");
             authSection.classList.add('hidden');
             appContent.classList.remove('hidden');
             navLogout.classList.remove('hidden');
@@ -79,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- API Fetch Helper (Duplicated from script.js - consider shared file) ---
-     const fetchWithAuth = async (url, options = {}) => {
+     async function fetchWithAuth(url, options = {}) { // Changed const to function
         const token = getToken();
         const headers = { ...options.headers };
 
@@ -343,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Auth Handlers (Duplicated from script.js - consider shared file) ---
-    const handleLogin = async (event) => {
+    async function handleLogin(event) { // Changed const to function
         event.preventDefault();
         // showLoadingOverlay(); // Assuming no separate overlay for settings auth
         const formData = new FormData(loginForm);
@@ -359,9 +368,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 throw new Error(result.message || `HTTP error! status: ${response.status}`);
             }
+            console.log("Settings: Login API call successful. Saving token...");
             saveToken(result.token, { id: result.userId, username: result.username });
             showToast('Login successful!');
+            console.log("Settings: Calling updateUIForAuthState after successful login.");
             updateUIForAuthState();
+            // Add log to check element state immediately after UI update call
+            console.log("Settings: After updateUI call -> authSection hidden:", authSection.classList.contains('hidden'), "appContent hidden:", appContent.classList.contains('hidden'));
+            console.log("Settings: Calling loadSettings after successful login.");
             loadSettings(); // Reload settings potentially relevant to user
             loginForm.reset();
         } catch (error) {
@@ -372,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const handleRegister = async (event) => {
+    async function handleRegister(event) { // Changed const to function
         event.preventDefault();
         // showLoadingOverlay();
         const formData = new FormData(registerForm);
@@ -407,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const handleLogout = () => {
+    function handleLogout() { // Changed const to function
         clearToken();
         showToast('Logged out successfully.');
         updateUIForAuthState();
