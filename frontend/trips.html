@@ -46,18 +46,13 @@
     </section>
     <!-- End Auth Section -->
 
-    <nav class="main-nav">
-        <ul id="nav-links">
-            <!-- Navigation links will be updated by JS based on login state -->
-            <li id="nav-trips"><a href="trips.html" class="active"><i class="fas fa-route"></i> Trips</a></li>
-            <li id="nav-add-expense"><a href="index.html"><i class="fas fa-plus-circle"></i> Add Expense</a></li>
-            <li id="nav-settings"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
-            <li id="nav-logout" class="hidden"><a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </nav>
+    <!-- Removed Main Navigation Bar for this specific page -->
 
     <!-- Main App Content (Trip Dashboard will go here) -->
     <div id="app-content" class="hidden">
+        <div style="text-align: right; padding: 10px;"> <!-- Simple container for logout -->
+            <button id="logout-button" class="btn-secondary"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
         <section id="trip-dashboard">
             <h2>Trip Management</h2>
             <div class="trip-actions">

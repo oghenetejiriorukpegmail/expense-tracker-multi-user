@@ -66,21 +66,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loggedIn) {
             authSection.classList.add('hidden');
             appContent.classList.remove('hidden');
-            navLogout.classList.remove('hidden');
-            // Update nav links for logged-in state
-            document.getElementById('nav-trips')?.classList.remove('hidden');
-            document.getElementById('nav-add-expense')?.classList.remove('hidden');
-            document.getElementById('nav-settings')?.classList.remove('hidden');
+            // navLogout element doesn't exist on this page anymore
+            // document.getElementById('nav-trips')?.classList.remove('hidden'); // No nav bar
+            // document.getElementById('nav-add-expense')?.classList.remove('hidden'); // No nav bar
+            // document.getElementById('nav-settings')?.classList.remove('hidden'); // No nav bar
         } else {
             authSection.classList.remove('hidden');
             appContent.classList.add('hidden');
-            navLogout.classList.add('hidden');
+            // navLogout element doesn't exist on this page anymore
             loginFormContainer.classList.remove('hidden');
             registerFormContainer.classList.add('hidden');
-             // Update nav links for logged-out state (optional: hide them?)
-            document.getElementById('nav-trips')?.classList.add('hidden');
-            document.getElementById('nav-add-expense')?.classList.add('hidden');
-            document.getElementById('nav-settings')?.classList.add('hidden');
+             // No nav bar to update links on
+            // document.getElementById('nav-trips')?.classList.add('hidden');
+            // document.getElementById('nav-add-expense')?.classList.add('hidden');
+            // document.getElementById('nav-settings')?.classList.add('hidden');
         }
     };
 
