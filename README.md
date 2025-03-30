@@ -16,12 +16,15 @@ A web application for tracking expenses with automated receipt scanning via AI O
   - Expense type
 - View list of expenses grouped by trip.
 
-✔ **Trip Management & Settings** (`trips.html`)
+✔ **Trip Management** (`trips.html`)
 - Create, view, and delete Trips.
-- Link to view/add expenses for a specific trip.
+- Link to view/add expenses for a specific trip (navigates to `index.html`).
 - Export trip expenses to Excel (.xlsx) (Requires login).
+
+✔ **OCR Settings** (`settings.html`)
 - Configure OCR Settings (Provider, API Keys, Models).
 - Test OCR functionality.
+- Requires login.
 
 ✔ **Multi-User Support**
 - User Registration & Login
@@ -73,12 +76,12 @@ A web application for tracking expenses with automated receipt scanning via AI O
     The SQLite database (`expenses.db`) will be created automatically in the `backend` directory on first run.
 
 5.  **Access the app**:
-    Open `http://localhost:3000` in your browser. Register a new user or log in. You will be directed to the Trip Management & Settings page (`trips.html`) after login.
+    Open `http://localhost:3000` in your browser. Register a new user or log in. You can navigate between Trips (`trips.html`), Add Expense (`index.html`), and Settings (`settings.html`) using the navigation bar after logging in.
 
 ## Configuration
 
 - **User Accounts**: Register and log in via the UI. Each user's expenses and trips are kept separate.
-- **OCR Settings**: Configure OCR settings via the Trips page (`/trips.html`) after logging in:
+- **OCR Settings**: Configure OCR settings via the Settings page (`/settings.html`) after logging in:
   - Choose OCR provider (Tesseract, Gemini, OpenAI, Claude, OpenRouter).
   - Enter API keys for the desired AI providers. These keys are saved server-side in the `backend/.env` file via the `/api/update-env` endpoint (requires login).
   - Select preferred models (where applicable).
@@ -86,7 +89,7 @@ A web application for tracking expenses with automated receipt scanning via AI O
 
 ## Technology Stack
 
-- **Frontend**: HTML5, CSS3, JavaScript (`script.js`, `trips.js`)
+- **Frontend**: HTML5, CSS3, JavaScript (`script.js`, `settings.js`, `trips.js`)
 - **Backend**: Node.js, Express
 - **Database**: SQLite (`backend/expenses.db`)
 - **Authentication**: JWT (`jsonwebtoken`), Password Hashing (`bcrypt`)
