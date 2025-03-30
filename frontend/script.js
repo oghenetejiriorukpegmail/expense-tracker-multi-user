@@ -194,6 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Form Functions ---
     const resetForm = () => {
+        // Save the current trip name before resetting
+        const currentTripName = document.getElementById('tripName').value;
+        
         receiptUploadForm.reset();
         expenseForm.reset();
         expenseIdInput.value = '';
@@ -201,8 +204,14 @@ document.addEventListener('DOMContentLoaded', () => {
         receiptPreview.classList.add('hidden');
         currentReceiptFile = null;
 
-        // Keep the edit step visible, just clear the fields.
-        // The cancel button will handle switching back to the upload step.
+        // Switch back to the receipt upload step
+        receiptUploadStep.classList.remove('hidden');
+        editExpenseStep.classList.add('hidden');
+        
+        // Restore the trip name
+        if (currentTripName) {
+            document.getElementById('tripName').value = currentTripName;
+        }
     };
 
     const showEditStep = (data = {}) => {
@@ -393,10 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('Expense added:', result);
             showToast('Expense added successfully');
-            resetForm();
-            // Get current trip name from the input field and refresh the list for that trip
             const currentTripName = document.getElementById('tripName').value;
+            resetForm();
             await fetchAndDisplayExpenses(currentTripName);
+            document.getElementById('expense-list-section').scrollIntoView({ behavior: 'smooth' });
         } catch (error) {
             console.error('Error adding expense:', error);
             let errorMessage = error.message.startsWith('Validation Error:') ? error.message.replace('Validation Error: ', '') : 'Failed to add expense';
@@ -423,10 +432,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('Expense updated:', result);
             showToast('Expense updated successfully');
-            resetForm();
-            // Get current trip name from the input field and refresh the list for that trip
             const currentTripName = document.getElementById('tripName').value;
+            resetForm();
             await fetchAndDisplayExpenses(currentTripName);
+            document.getElementById('expense-list-section').scrollIntoView({ behavior: 'smooth' });
         } catch (error) {
             console.error('Error updating expense:', error);
             let errorMessage = error.message.startsWith('Validation Error:') ? error.message.replace('Validation Error: ', '') : 'Failed to update expense';
@@ -452,7 +461,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             console.log('Expense deleted:', expenseId);
             showToast('Expense deleted successfully');
-            await fetchAndDisplayExpenses();
+            const currentTripName = document.getElementById('tripName').value;
+            await fetchAndDisplayExpenses(currentTripName);
+            document.getElementById('expense-list-section').scrollIntoView({ behavior: 'smooth' });
         } catch (error) {
             console.error('Error deleting expense:', error);
             showToast('Failed to delete expense', 'error');
@@ -854,10 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     cancelEditButton.addEventListener('click', () => {
-        resetForm(); // Clear the form fields
-        // Explicitly switch back to the upload step
-        receiptUploadStep.classList.remove('hidden');
-        editExpenseStep.classList.add('hidden');
+        resetForm(); // Clear the form fields and switch back to upload step
     });
 
     closeModal.addEventListener('click', closeReceiptModal);
