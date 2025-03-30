@@ -15,13 +15,19 @@ const fs = require('fs');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const { body, validationResult } = require('express-validator');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 // Import OCR utilities
 const ocrUtils = require('./utils/ocr');
+// Import database connection
+const { db } = require('./database');
+// Import authentication middleware
+const authenticateToken = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data.json');
+// const DATA_FILE = path.join(__dirname, 'data.json'); // Removed - Using database now
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
 // --- Multer Configuration ---
@@ -70,39 +76,7 @@ app.use((err, req, res, next) => {
 });
 
 
-// --- Helper Function to Read/Write Data ---
-const readData = () => {
-    try {
-        if (!fs.existsSync(DATA_FILE)) return [];
-        const data = fs.readFileSync(DATA_FILE, 'utf8');
-        try {
-            return JSON.parse(data);
-        } catch (parseError) {
-            console.error('Error parsing data file:', parseError);
-            return [];
-        }
-    } catch (error) {
-        console.error('Error reading data file:', error);
-        return [];
-    }
-};
-
-const writeData = (data) => {
-    try {
-        // Ensure the data is valid JSON
-        const jsonData = JSON.stringify(data, null, 2);
-        // Ensure the directory exists
-        const dataDir = path.dirname(DATA_FILE);
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
-        }
-        fs.writeFileSync(DATA_FILE, jsonData, 'utf8');
-        return true;
-    } catch (error) {
-        console.error('Error writing data file:', error);
-        return false;
-    }
-};
+// --- Helper Functions (Removed readData/writeData, using database now) ---
 
 /**
  * Updates the .env file with new key-value pairs.
@@ -180,174 +154,332 @@ const expenseCreationValidationRules = [
 // --- End Validation Rules ---
 
 
-// --- API Routes ---
+// --- Auth Routes ---
 
-app.get('/api/expenses', (req, res) => {
-    console.log('GET /api/expenses hit');
+// POST /api/auth/register - Register a new user
+app.post('/api/auth/register', [
+    body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters long').trim().escape(),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+], async (req, res) => {
+    console.log('POST /api/auth/register hit');
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { username, password } = req.body;
+    const saltRounds = 10; // Standard practice for bcrypt salt rounds
+
     try {
-        // Set a timeout to ensure the request doesn't hang
-        const timeoutId = setTimeout(() => {
-            console.error('GET /api/expenses: Request timed out');
-            return res.status(500).json({ message: 'Request timed out' });
-        }, 5000);
-        
-        // Read data
-        const expenses = readData();
-        
-        // Clear the timeout since we got the data
-        clearTimeout(timeoutId);
-        
-        console.log(`GET /api/expenses: Found ${expenses.length} expenses`);
+        // Check if username already exists
+        const checkUserSql = "SELECT id FROM users WHERE username = ?";
+        db.get(checkUserSql, [username], async (err, row) => {
+            if (err) {
+                console.error('Register: Error checking username:', err.message);
+                return res.status(500).json({ message: 'Database error during registration.' });
+            }
+            if (row) {
+                console.log(`Register: Username "${username}" already exists.`);
+                return res.status(400).json({ message: 'Username already taken.' });
+            }
+
+            // Hash password
+            const passwordHash = await bcrypt.hash(password, saltRounds);
+
+            // Insert new user
+            const insertSql = "INSERT INTO users (username, password_hash) VALUES (?, ?)";
+            db.run(insertSql, [username, passwordHash], function(err) { // Use function() to access this.lastID
+                if (err) {
+                    console.error('Register: Error inserting user:', err.message);
+                    return res.status(500).json({ message: 'Failed to register user.' });
+                }
+                console.log(`Register: User "${username}" created with ID ${this.lastID}`);
+                res.status(201).json({ message: 'User registered successfully.', userId: this.lastID });
+            });
+        });
+    } catch (error) {
+        console.error('Register: Unexpected error:', error);
+        res.status(500).json({ message: 'An unexpected error occurred during registration.' });
+    }
+});
+
+// POST /api/auth/login - Log in a user
+app.post('/api/auth/login', [
+    body('username').notEmpty().withMessage('Username is required').trim().escape(),
+    body('password').notEmpty().withMessage('Password is required')
+], (req, res) => {
+    console.log('POST /api/auth/login hit');
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { username, password } = req.body;
+    const JWT_SECRET = process.env.JWT_SECRET; // Get secret from environment
+
+    if (!JWT_SECRET) {
+        console.error("Login Error: JWT_SECRET is not defined.");
+        return res.status(500).json({ message: 'Server configuration error.' });
+    }
+
+    const sql = "SELECT id, username, password_hash FROM users WHERE username = ?";
+    db.get(sql, [username], async (err, user) => {
+        if (err) {
+            console.error('Login: Database error:', err.message);
+            return res.status(500).json({ message: 'Database error during login.' });
+        }
+        if (!user) {
+            console.log(`Login: User "${username}" not found.`);
+            return res.status(401).json({ message: 'Invalid username or password.' }); // Generic message for security
+        }
+
+        // Compare password with hash
+        const match = await bcrypt.compare(password, user.password_hash);
+        if (!match) {
+            console.log(`Login: Incorrect password for user "${username}".`);
+            return res.status(401).json({ message: 'Invalid username or password.' }); // Generic message
+        }
+
+        // Passwords match - Generate JWT
+        const payload = { userId: user.id, username: user.username };
+        // Consider adding an expiration time (e.g., '1h', '7d')
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' }); // Token expires in 1 hour
+
+        console.log(`Login: User "${username}" (ID: ${user.id}) logged in successfully.`);
+        res.json({ message: 'Login successful.', token: token, userId: user.id, username: user.username });
+    });
+});
+
+// --- End Auth Routes ---
+
+
+// --- Expense API Routes (Protected) ---
+
+// Apply authentication middleware to this route
+app.get('/api/expenses', authenticateToken, (req, res) => {
+    const userId = req.user.id; // Get user ID from authenticated request
+    console.log(`GET /api/expenses hit for user ${userId}`);
+
+    // Fetch expenses from the database for the specific user
+    const sql = "SELECT * FROM expenses WHERE user_id = ? ORDER BY date DESC";
+    const params = [userId];
+
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            console.error(`Error fetching expenses for user ${userId}:`, err.message);
+            return res.status(500).json({ message: 'Failed to fetch expenses' });
+        }
+        console.log(`GET /api/expenses: Found ${rows.length} expenses for user ${userId}`);
+        // Convert cost back to number if stored as REAL
+        const expenses = rows.map(exp => ({
+            ...exp,
+            cost: parseFloat(exp.cost)
+        }));
         return res.json(expenses);
-    } catch (error) {
-        console.error('Error fetching expenses:', error);
-        return res.status(500).json({ message: 'Failed to fetch expenses' });
-    }
+    });
 });
 
-app.get('/api/expenses/:id', (req, res) => { /* ... unchanged ... */
-    console.log(`GET /api/expenses/${req.params.id} hit`);
-    try {
-        const expenses = readData();
-        const expense = expenses.find(exp => exp.id === req.params.id);
-        if (!expense) return res.status(404).json({ message: 'Expense not found' });
+// Apply authentication middleware
+app.get('/api/expenses/:id', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    const expenseId = req.params.id;
+    console.log(`GET /api/expenses/${expenseId} hit for user ${userId}`);
+
+    const sql = "SELECT * FROM expenses WHERE id = ? AND user_id = ?";
+    const params = [expenseId, userId];
+
+    db.get(sql, params, (err, row) => {
+        if (err) {
+            console.error(`Error fetching expense ${expenseId} for user ${userId}:`, err.message);
+            return res.status(500).json({ message: 'Failed to fetch expense' });
+        }
+        if (!row) {
+            console.log(`Expense ${expenseId} not found or not owned by user ${userId}`);
+            return res.status(404).json({ message: 'Expense not found' });
+        }
+        // Convert cost back to number
+        const expense = { ...row, cost: parseFloat(row.cost) };
         res.json(expense);
-    } catch (error) {
-        console.error('Error fetching expense:', error);
-        res.status(500).json({ message: 'Failed to fetch expense' });
-    }
+    });
 });
 
-// PUT /api/expenses/:id - Update an existing expense (No OCR here)
-app.put('/api/expenses/:id', function(req, res, next) {
-    // Handle file upload
+// PUT /api/expenses/:id - Update an existing expense (Protected)
+app.put('/api/expenses/:id', authenticateToken, function(req, res, next) {
+    // Handle file upload first
     upload.single('receipt')(req, res, function(err) {
         if (err) {
             console.error("Multer error:", err);
             return res.status(400).json({ message: `File upload error: ${err.message}` });
         }
-        next();
+        next(); // Proceed to validation
     });
+}, function(req, res, next) {
+    // Apply validation rules (using optional rules for PUT)
+    Promise.all(expenseValidationRules.map(validation => validation.run(req)))
+        .then(() => {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                console.error("Validation Errors:", JSON.stringify(errors.array()));
+                // Clean up uploaded file if validation fails
+                if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (err) { console.error("Error deleting file after validation error:", err); } }
+                return res.status(400).json({ errors: errors.array() });
+            }
+            next(); // Proceed to main logic
+        }).catch(next);
 }, function(req, res) {
-    console.log(`PUT /api/expenses/${req.params.id} hit`);
-    
-    // Validate request
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        if (req.file && req.file.path) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch (err) {
-                console.error("Error deleting file after validation error:", err);
-            }
+    // Main route logic
+    const userId = req.user.id;
+    const expenseId = req.params.id;
+    console.log(`PUT /api/expenses/${expenseId} hit for user ${userId}`);
+
+    // 1. Fetch the existing expense to check ownership and get old receipt path
+    const fetchSql = "SELECT * FROM expenses WHERE id = ? AND user_id = ?";
+    db.get(fetchSql, [expenseId, userId], (fetchErr, existingExpense) => {
+        if (fetchErr) {
+            console.error(`Error fetching expense ${expenseId} for update (user ${userId}):`, fetchErr.message);
+            // Clean up file if fetch fails
+            if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (unlinkErr) { console.error("Error deleting file:", unlinkErr); } }
+            return res.status(500).json({ message: 'Failed to retrieve expense for update.' });
         }
-        return res.status(400).json({ errors: errors.array() });
-    }
-    
-    try {
-        const expenses = readData();
-        const expenseIndex = expenses.findIndex(exp => exp.id === req.params.id);
-        
-        if (expenseIndex === -1) {
-            if (req.file && req.file.path) {
-                try {
-                    fs.unlinkSync(req.file.path);
-                } catch (err) {
-                    console.error("Error deleting file after not found error:", err);
-                }
-            }
-            return res.status(404).json({ message: 'Expense not found' });
+        if (!existingExpense) {
+            console.log(`Expense ${expenseId} not found or not owned by user ${userId} for update.`);
+            // Clean up file if expense not found
+            if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (unlinkErr) { console.error("Error deleting file:", unlinkErr); } }
+            return res.status(404).json({ message: 'Expense not found or you do not have permission to update it.' });
         }
-        
-        const existingExpense = expenses[expenseIndex];
-        const { type: formType, date: formDate, vendor: formVendor, location: formLocation, 
-               cost: formCost, comments: formComments, tripName: formTripName } = req.body;
-        
-        let receiptPath = existingExpense.receiptPath;
+
+        // 2. Prepare updated data
+        const { type, date, vendor, location, cost, comments, tripName } = req.body;
+        let newReceiptPath = existingExpense.receiptPath; // Default to old path
+
+        // Handle file update: Delete old, set new path
         if (req.file) {
             if (existingExpense.receiptPath) {
                 const oldFilePath = path.join(__dirname, existingExpense.receiptPath.replace('/uploads/', 'uploads/'));
-                try { 
-                    if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath); 
-                } catch (err) { 
-                    console.error(`Error deleting old receipt: ${err}`); 
+                try {
+                    if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+                    console.log(`Deleted old receipt: ${oldFilePath}`);
+                } catch (err) {
+                    console.error(`Error deleting old receipt ${oldFilePath}: ${err}`);
+                    // Decide if this is critical - maybe just log and continue?
                 }
             }
-            receiptPath = `/uploads/${req.file.filename}`;
+            newReceiptPath = `/uploads/${req.file.filename}`; // Set new path
         }
-        
-        const finalType = formType !== undefined ? formType : existingExpense.type;
-        const finalDate = formDate !== undefined ? formDate : existingExpense.date;
-        const finalVendor = formVendor !== undefined ? formVendor : existingExpense.vendor;
-        const finalLocation = formLocation !== undefined ? formLocation : existingExpense.location;
-        const finalCost = formCost !== undefined ? parseFloat(formCost) : existingExpense.cost;
-        const finalComments = formComments !== undefined ? formComments : existingExpense.comments;
-        const finalTripName = formTripName !== undefined ? (formTripName || null) : existingExpense.tripName;
-        
-        if (!finalDate || !finalCost || isNaN(finalCost) || finalCost <= 0) {
-            console.error("Validation Error: Missing Date or Cost after update merge.");
-            return res.status(400).json({ message: 'Internal Error: Missing Date or Cost after update.' });
-        }
-        
-        const updatedExpense = {
-            ...existingExpense, 
-            type: finalType, 
-            date: finalDate, 
-            vendor: finalVendor, 
-            location: finalLocation,
-            tripName: finalTripName, 
-            cost: finalCost, 
-            comments: finalComments, 
-            receiptPath: receiptPath,
+
+        // Merge existing data with new data (only update fields provided in request)
+        const updatedData = {
+            type: type !== undefined ? type : existingExpense.type,
+            // Ensure date is formatted correctly if provided
+            date: date !== undefined ? (date instanceof Date ? date.toISOString().split('T')[0] : date) : existingExpense.date,
+            vendor: vendor !== undefined ? vendor : existingExpense.vendor,
+            location: location !== undefined ? location : existingExpense.location,
+            cost: cost !== undefined ? parseFloat(cost) : existingExpense.cost,
+            comments: comments !== undefined ? comments : existingExpense.comments,
+            tripName: tripName !== undefined ? tripName : existingExpense.tripName,
+            receiptPath: newReceiptPath,
             updatedAt: new Date().toISOString()
         };
-        
-        expenses[expenseIndex] = updatedExpense;
-        writeData(expenses);
-        
-        console.log('Expense updated (internal):', updatedExpense);
-        
-        const responseExpense = { 
-            ...updatedExpense, 
-            date: typeof updatedExpense.date === 'object' && updatedExpense.date instanceof Date 
-                ? updatedExpense.date.toISOString().split('T')[0] 
-                : updatedExpense.date
-        };
-        
-        return res.json({ message: 'Expense updated successfully', expense: responseExpense });
-    } catch (error) {
-        console.error('Error updating expense:', error);
-        if (req.file && req.file.path) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch (err) {
-                console.error("Error deleting file after server error:", err);
-            }
+
+        // Basic check for essential fields after merge (should be caught by validation, but good safety net)
+        if (!updatedData.date || !updatedData.cost || isNaN(updatedData.cost) || updatedData.cost <= 0) {
+             console.error("Update Error: Missing Date or invalid Cost after merge.");
+             if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (unlinkErr) { console.error("Error deleting file:", unlinkErr); } }
+             return res.status(400).json({ message: 'Internal Error: Missing Date or invalid Cost after update.' });
         }
-        return res.status(500).json({ message: 'Failed to update expense due to server error.' });
-    }
+
+        // 3. Update database
+        const updateSql = `UPDATE expenses SET
+                               type = ?, date = ?, vendor = ?, location = ?, cost = ?,
+                               comments = ?, tripName = ?, receiptPath = ?, updatedAt = ?
+                           WHERE id = ? AND user_id = ?`;
+        const updateParams = [
+            updatedData.type, updatedData.date, updatedData.vendor, updatedData.location, updatedData.cost,
+            updatedData.comments, updatedData.tripName, updatedData.receiptPath, updatedData.updatedAt,
+            expenseId, userId
+        ];
+
+        db.run(updateSql, updateParams, function(updateErr) {
+            if (updateErr) {
+                console.error(`Error updating expense ${expenseId} for user ${userId}:`, updateErr.message);
+                // Don't delete the *new* file here, as the update failed. The old one might already be gone.
+                return res.status(500).json({ message: 'Failed to update expense.' });
+            }
+            if (this.changes === 0) {
+                // Should not happen if fetch succeeded, but good check
+                console.error(`Update Error: Expense ${expenseId} (user ${userId}) not found during UPDATE, though found during initial GET.`);
+                return res.status(404).json({ message: 'Expense not found during update process.' });
+            }
+
+            console.log(`Expense ${expenseId} updated successfully for user ${userId}`);
+
+            // 4. Fetch the final updated expense to return
+            db.get(fetchSql, [expenseId, userId], (finalFetchErr, finalRow) => {
+                 if (finalFetchErr) {
+                     console.error(`Error fetching updated expense ${expenseId}:`, finalFetchErr.message);
+                     return res.status(500).json({ message: 'Expense updated but failed to fetch final details.' });
+                 }
+                 if (!finalRow) {
+                      return res.status(500).json({ message: 'Expense updated but could not be found immediately after.' });
+                 }
+                 const responseExpense = { ...finalRow, cost: parseFloat(finalRow.cost) };
+                 return res.json({ message: 'Expense updated successfully', expense: responseExpense });
+            });
+        });
+    });
 });
 
-// DELETE /api/expenses/:id - Delete an expense
-app.delete('/api/expenses/:id', (req, res) => { /* ... unchanged ... */
-    console.log(`DELETE /api/expenses/${req.params.id} hit`);
-    try {
-        const expenses = readData();
-        const expenseIndex = expenses.findIndex(exp => exp.id === req.params.id);
-        if (expenseIndex === -1) return res.status(404).json({ message: 'Expense not found' });
-        const expenseToDelete = expenses[expenseIndex];
-        if (expenseToDelete.receiptPath) {
-            const filePath = path.join(__dirname, expenseToDelete.receiptPath.replace('/uploads/', 'uploads/'));
-            try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (err) { console.error(`Error deleting receipt: ${err}`); }
+// DELETE /api/expenses/:id - Delete an expense (Protected)
+app.delete('/api/expenses/:id', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    const expenseId = req.params.id;
+    console.log(`DELETE /api/expenses/${expenseId} hit for user ${userId}`);
+
+    // 1. Fetch the expense to check ownership and get receipt path
+    const fetchSql = "SELECT receiptPath FROM expenses WHERE id = ? AND user_id = ?";
+    db.get(fetchSql, [expenseId, userId], (fetchErr, expenseToDelete) => {
+        if (fetchErr) {
+            console.error(`Error fetching expense ${expenseId} for deletion (user ${userId}):`, fetchErr.message);
+            return res.status(500).json({ message: 'Failed to retrieve expense for deletion.' });
         }
-        expenses.splice(expenseIndex, 1);
-        writeData(expenses);
-        console.log(`Expense deleted: ${req.params.id}`);
-        res.json({ message: 'Expense deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting expense:', error);
-        res.status(500).json({ message: 'Failed to delete expense due to server error.' });
-    }
+        if (!expenseToDelete) {
+            console.log(`Expense ${expenseId} not found or not owned by user ${userId} for deletion.`);
+            // Return 404 even if it exists but isn't owned by the user, for security
+            return res.status(404).json({ message: 'Expense not found or you do not have permission to delete it.' });
+        }
+
+        // 2. Delete the expense from the database
+        const deleteSql = "DELETE FROM expenses WHERE id = ? AND user_id = ?";
+        db.run(deleteSql, [expenseId, userId], function(deleteErr) {
+            if (deleteErr) {
+                console.error(`Error deleting expense ${expenseId} for user ${userId}:`, deleteErr.message);
+                return res.status(500).json({ message: 'Failed to delete expense.' });
+            }
+            if (this.changes === 0) {
+                // Should not happen if fetch succeeded, but good check
+                console.error(`Delete Error: Expense ${expenseId} (user ${userId}) not found during DELETE, though found during initial GET.`);
+                return res.status(404).json({ message: 'Expense not found during delete process.' });
+            }
+
+            console.log(`Expense ${expenseId} deleted successfully from DB for user ${userId}`);
+
+            // 3. Delete the associated receipt file, if it exists
+            if (expenseToDelete.receiptPath) {
+                const filePath = path.join(__dirname, expenseToDelete.receiptPath.replace('/uploads/', 'uploads/'));
+                try {
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                        console.log(`Deleted associated receipt file: ${filePath}`);
+                    }
+                } catch (fileErr) {
+                    // Log the error but don't fail the request, as the DB entry is gone.
+                    console.error(`Error deleting receipt file ${filePath}: ${fileErr}`);
+                }
+            }
+
+            res.json({ message: 'Expense deleted successfully' });
+        });
+    });
 });
 
 /**
@@ -482,211 +614,187 @@ app.post('/api/test-ocr', upload.single('receipt'), async (req, res) => {
 });
 
 
-// POST /api/expenses - Add a new expense (No OCR here)
-app.post('/api/expenses', function(req, res, next) {
-    // Handle file upload
+// POST /api/expenses - Add a new expense (Protected)
+app.post('/api/expenses', authenticateToken, function(req, res, next) {
+    // Handle file upload first
     upload.single('receipt')(req, res, function(err) {
         if (err) {
             console.error("Multer error:", err);
             return res.status(400).json({ message: `File upload error: ${err.message}` });
         }
+        // File uploaded successfully (or no file), proceed to validation
         next();
     });
 }, function(req, res, next) {
-    // Apply validation rules
-    for (const validator of expenseCreationValidationRules) {
-        validator(req, res, () => {});
-    }
-    next();
+    // Apply validation rules (ensure this runs *after* multer and auth)
+    // Need to manually trigger validation checks here as they are separate middleware
+    Promise.all(expenseCreationValidationRules.map(validation => validation.run(req)))
+        .then(() => {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                console.error("Validation Errors:", JSON.stringify(errors.array()));
+                // Clean up uploaded file if validation fails
+                if (req.file && req.file.path) {
+                    try { fs.unlinkSync(req.file.path); } catch (err) { console.error("Error deleting file after validation error:", err); }
+                }
+                return res.status(400).json({ errors: errors.array() });
+            }
+            // Validation passed, proceed to main logic
+            next();
+        }).catch(next); // Pass errors to the global error handler
 }, function(req, res) {
-    console.log('POST /api/expenses hit');
-    
-    // Ensure uploads directory exists
+    // Main route logic (runs after auth, multer, and validation)
+    const userId = req.user.id;
+    console.log(`POST /api/expenses hit for user ${userId}`);
+
+    // Ensure uploads directory exists (Multer should handle this, but double-check)
     if (!fs.existsSync(UPLOADS_DIR)) {
         try {
             fs.mkdirSync(UPLOADS_DIR, { recursive: true });
         } catch (err) {
             console.error("Error creating uploads directory:", err);
-            return res.status(500).json({ message: 'Failed to create uploads directory.' });
+            // Clean up file if directory creation fails mid-request
+            if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (unlinkErr) { console.error("Error deleting file:", unlinkErr); } }
+            return res.status(500).json({ message: 'Failed to ensure uploads directory exists.' });
         }
     }
-    
-    // For tests, we might not have validation errors even if fields are missing
-    // This is because the validationResult might be mocked in tests
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        console.error("Validation Errors:", JSON.stringify(errors.array()));
-        if (req.file && req.file.path) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch (err) {
-                console.error("Error deleting file after validation error:", err);
-            }
-        }
-        return res.status(400).json({ errors: errors.array() });
-    }
-    
+
     try {
-        console.log("POST /api/expenses: Inside try block");
-        
-        // In test environment, we might not have a file
-        // but we should still proceed for testing purposes
-        const isTestEnvironment = process.env.NODE_ENV === 'test';
-        
-        if (!req.file && !isTestEnvironment) {
-            console.log("POST /api/expenses: No file found, returning 400");
-            return res.status(400).json({ message: 'Receipt upload is required.' });
-        }
-        
-        // Extract form data
-        const { type: formType, date: formDate, vendor: formVendor, location: formLocation, 
-               cost: formCost, comments: formComments, tripName: formTripName } = req.body;
-        
-        console.log("POST /api/expenses: Form data extracted:", {
-            type: formType,
-            date: formDate,
-            vendor: formVendor,
-            location: formLocation,
-            cost: formCost,
-            tripName: formTripName
-        });
-        
-        // Manual validation for tests where express-validator might be bypassed
-        if (!formType && !isTestEnvironment) {
-            return res.status(400).json({ message: 'Type is required.' });
-        }
-        
-        if (!formDate && !isTestEnvironment) {
-            return res.status(400).json({ message: 'Date is required.' });
-        }
-        
-        if (!formVendor && !isTestEnvironment) {
-            return res.status(400).json({ message: 'Vendor is required.' });
-        }
-        
-        if (!formLocation && !isTestEnvironment) {
-            return res.status(400).json({ message: 'Location is required.' });
-        }
-        
-        if (!formCost && !isTestEnvironment) {
-            return res.status(400).json({ message: 'Cost is required.' });
-        }
-        
-        // Validate tripName
-        if (!formTripName && !isTestEnvironment) {
-            console.log("POST /api/expenses: No tripName found, returning 400");
-            if (req.file && req.file.path) {
-                try {
-                    fs.unlinkSync(req.file.path);
-                } catch (err) {
-                    console.error("Error deleting file after tripName validation error:", err);
+        // Extract form data (already validated)
+        const { type, date, vendor, location, cost, comments, tripName } = req.body;
+        const receiptPath = req.file ? `/uploads/${req.file.filename}` : null;
+        const now = new Date().toISOString();
+
+        // Prepare data for insertion
+        const sql = `INSERT INTO expenses (user_id, type, date, vendor, location, cost, comments, tripName, receiptPath, createdAt, updatedAt)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const params = [
+            userId,
+            type,
+            // Ensure date is in YYYY-MM-DD format if it came from validation as Date object
+            (date instanceof Date ? date.toISOString().split('T')[0] : date),
+            vendor,
+            location,
+            parseFloat(cost), // Ensure cost is a number
+            comments || null, // Use null for empty optional fields
+            tripName,
+            receiptPath,
+            now,
+            now
+        ];
+
+        // Insert into database
+        db.run(sql, params, function(err) {
+            if (err) {
+                console.error(`Error inserting expense for user ${userId}:`, err.message);
+                // Clean up uploaded file if DB insert fails
+                if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (unlinkErr) { console.error("Error deleting file:", unlinkErr); } }
+                return res.status(500).json({ message: 'Failed to save expense.' });
+            }
+
+            const newExpenseId = this.lastID;
+            console.log(`Expense created with ID ${newExpenseId} for user ${userId}`);
+
+            // Fetch the newly created expense to return it
+            const fetchSql = "SELECT * FROM expenses WHERE id = ? AND user_id = ?";
+            db.get(fetchSql, [newExpenseId, userId], (fetchErr, row) => {
+                if (fetchErr) {
+                    console.error(`Error fetching newly created expense ${newExpenseId}:`, fetchErr.message);
+                    // Even if fetch fails, the expense was created, so maybe return 201 with just ID?
+                    return res.status(500).json({ message: 'Expense created but failed to fetch details.' });
                 }
-            }
-            return res.status(400).json({ message: 'Trip Name is required.' });
-        }
-        
-        // Set receipt path
-        let receiptPath = req.file ? `/uploads/${req.file.filename}` : null;
-        
-        // Read existing data
-        console.log("POST /api/expenses: Reading data...");
-        const expenses = readData();
-        console.log("POST /api/expenses: Data read successfully");
-        
-        // Process form data
-        const finalType = formType || 'Expense';
-        const finalDate = formDate || new Date().toISOString().split('T')[0];
-        const finalVendor = formVendor || 'Unknown';
-        const finalLocation = formLocation || 'Unknown';
-        const finalCost = parseFloat(formCost || '0');
-        const finalComments = formComments || '';
-        const finalTripName = formTripName || 'Uncategorized';
-        
-        // Create new expense object
-        const newExpense = {
-            id: Date.now().toString(),
-            type: finalType,
-            date: finalDate,
-            vendor: finalVendor,
-            location: finalLocation,
-            cost: finalCost,
-            comments: finalComments,
-            tripName: finalTripName,
-            receiptPath: receiptPath,
-            createdAt: new Date().toISOString()
-        };
-        
-        console.log("POST /api/expenses: New expense object created:", newExpense);
-        
-        // Add to expenses array and save
-        expenses.push(newExpense);
-        console.log("POST /api/expenses: Writing data...");
-        const writeSuccess = writeData(expenses);
-        
-        if (!writeSuccess && !isTestEnvironment) {
-            console.error("POST /api/expenses: Failed to write data");
-            return res.status(500).json({ message: 'Failed to save expense data.' });
-        }
-        
-        console.log("POST /api/expenses: Data written successfully");
-        
-        // Format response
-        const responseExpense = { 
-            ...newExpense, 
-            date: typeof newExpense.date === 'object' && newExpense.date instanceof Date 
-                ? newExpense.date.toISOString().split('T')[0] 
-                : newExpense.date
-        };
-        
-        console.log("POST /api/expenses: Sending 201 response");
-        return res.status(201).json({ message: 'Expense added successfully', expense: responseExpense });
+                if (!row) {
+                     return res.status(500).json({ message: 'Expense created but could not be found immediately after.' });
+                }
+
+                // Format response
+                const responseExpense = { ...row, cost: parseFloat(row.cost) };
+                return res.status(201).json({ message: 'Expense added successfully', expense: responseExpense });
+            });
+        });
+
     } catch (error) {
-        console.error("POST /api/expenses: Error caught in try block:", error);
-        if (req.file && req.file.path) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch (err) {
-                console.error("Error deleting file after server error:", err);
-            }
-        }
+        console.error(`POST /api/expenses: Unexpected error for user ${userId}:`, error);
+        // Clean up uploaded file on unexpected error
+        if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (unlinkErr) { console.error("Error deleting file:", unlinkErr); } }
         return res.status(500).json({ message: 'Failed to add expense due to server error.' });
     }
 });
 
-// GET /api/export-expenses - Generate and download Excel file
-app.get('/api/export-expenses', (req, res) => { /* ... unchanged ... */
+// GET /api/export-expenses - Generate and download Excel file (Protected)
+app.get('/api/export-expenses', authenticateToken, (req, res) => {
+    const userId = req.user.id;
     const requestedTripName = req.query.tripName;
-    if (!requestedTripName) return res.status(400).send('Error: Please specify a tripName query parameter.');
-    console.log(`GET /api/export-expenses hit. Trip requested: ${requestedTripName}`);
-    try {
-        let allExpenses = readData();
-        let expensesToExport = allExpenses.filter(exp => exp.tripName === requestedTripName);
-        let filenameBase = requestedTripName.replace(/[^a-z0-9_\-\s]/gi, '').replace(/\s+/g, '_') || 'trip_expenses';
-        const wb = XLSX.utils.book_new();
-        const headers = ['Type', 'Date', 'Vendor', 'Location', 'Cost', 'Comments'];
-        const data = [headers];
-        if (expensesToExport.length > 0) {
-            expensesToExport.forEach(exp => {
-                let dateStr = exp.date;
-                if (exp.date instanceof Date) dateStr = exp.date.toISOString().split('T')[0];
-                else if (typeof exp.date === 'string' && exp.date.includes('T')) dateStr = exp.date.split('T')[0];
-                data.push([ exp.type || '', dateStr || '', exp.vendor || '', exp.location || '', parseFloat(exp.cost || 0).toFixed(2), exp.comments || '' ]);
-            });
-        } else { console.log(`No expenses found for trip: ${requestedTripName}`); }
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-        const tempFilePath = path.join(__dirname, `expenses_${Date.now()}.xlsx`);
-        XLSX.writeFile(wb, tempFilePath);
-        const filename = `${filenameBase}.xlsx`;
-        res.download(tempFilePath, filename, (err) => {
-            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-            if (err) console.error('Error sending Excel file:', err);
-        });
-        console.log(`Generated Excel file: ${filename}`);
-    } catch (error) {
-        console.error('Error generating Excel export:', error);
-        res.status(500).send('Error generating Excel file.');
+
+    if (!requestedTripName) {
+        return res.status(400).send('Error: Please specify a tripName query parameter.');
     }
+    console.log(`GET /api/export-expenses hit for user ${userId}. Trip requested: ${requestedTripName}`);
+
+    // Fetch expenses for the specific user and trip name
+    const sql = "SELECT type, date, vendor, location, cost, comments FROM expenses WHERE user_id = ? AND tripName = ? ORDER BY date ASC";
+    const params = [userId, requestedTripName];
+
+    db.all(sql, params, (err, expensesToExport) => {
+        if (err) {
+            console.error(`Error fetching expenses for export (user ${userId}, trip ${requestedTripName}):`, err.message);
+            return res.status(500).send('Error fetching expenses for export.');
+        }
+
+        try {
+            let filenameBase = requestedTripName.replace(/[^a-z0-9_\-\s]/gi, '').replace(/\s+/g, '_') || 'trip_expenses';
+            const wb = XLSX.utils.book_new();
+            const headers = ['Type', 'Date', 'Vendor', 'Location', 'Cost', 'Comments'];
+            const data = [headers]; // Start data array with headers
+
+            if (expensesToExport.length > 0) {
+                expensesToExport.forEach(exp => {
+                    // Date should already be in correct string format from DB or previous processing
+                    let dateStr = exp.date;
+                    // Just in case, handle potential Date objects (though unlikely if stored as TEXT)
+                    if (exp.date instanceof Date) dateStr = exp.date.toISOString().split('T')[0];
+                    else if (typeof exp.date === 'string' && exp.date.includes('T')) dateStr = exp.date.split('T')[0];
+
+                    data.push([
+                        exp.type || '',
+                        dateStr || '',
+                        exp.vendor || '',
+                        exp.location || '',
+                        parseFloat(exp.cost || 0).toFixed(2), // Ensure cost is formatted
+                        exp.comments || ''
+                    ]);
+                });
+            } else {
+                console.log(`No expenses found for user ${userId}, trip: ${requestedTripName}`);
+                // Optionally, still generate an empty file or return a message
+                // For now, generate file with only headers
+            }
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+            const tempFilePath = path.join(__dirname, `expenses_${Date.now()}.xlsx`);
+            XLSX.writeFile(wb, tempFilePath);
+
+            const filename = `${filenameBase}.xlsx`;
+            res.download(tempFilePath, filename, (downloadErr) => {
+                // Cleanup the temporary file after download attempt
+                if (fs.existsSync(tempFilePath)) {
+                    fs.unlink(tempFilePath, (unlinkErr) => {
+                        if (unlinkErr) console.error('Error deleting temporary Excel file:', unlinkErr);
+                    });
+                }
+                if (downloadErr) {
+                    console.error('Error sending Excel file:', downloadErr);
+                    // Avoid sending another response if headers already sent
+                }
+            });
+            console.log(`Generated Excel file: ${filename} for user ${userId}`);
+
+        } catch (excelError) {
+            console.error(`Error generating Excel export for user ${userId}, trip ${requestedTripName}:`, excelError);
+            res.status(500).send('Error generating Excel file.');
+        }
+    });
 });
 
 /**
@@ -695,8 +803,9 @@ app.get('/api/export-expenses', (req, res) => { /* ... unchanged ... */
  * from the frontend. In a production environment, this MUST be secured
  * with proper authentication and authorization.
  */
-app.post('/api/update-env', (req, res) => {
-    console.log('POST /api/update-env hit');
+// Apply authentication middleware - Only logged-in users should update settings
+app.post('/api/update-env', authenticateToken, (req, res) => {
+    console.log(`POST /api/update-env hit by user ${req.user.id}`); // Log which user is making the change
     const {
         GEMINI_API_KEY,
         OPENAI_API_KEY,

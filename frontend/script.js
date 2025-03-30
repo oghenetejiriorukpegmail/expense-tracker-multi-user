@@ -21,6 +21,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const toastMessage = document.getElementById('toast-message');
     const receiptPreview = document.getElementById('receipt-preview');
     const receiptFilename = document.getElementById('receipt-filename');
+    // Auth elements
+    const authSection = document.getElementById('auth-section');
+    const loginFormContainer = document.getElementById('login-form-container');
+    const registerFormContainer = document.getElementById('register-form-container');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const showRegisterLink = document.getElementById('show-register');
+    const showLoginLink = document.getElementById('show-login');
+    const appContent = document.getElementById('app-content');
+    const navLinks = document.getElementById('nav-links');
+    const navLogout = document.getElementById('nav-logout');
+    const logoutButton = document.getElementById('logout-button');
 
     // Add loading overlay to the body
     const loadingOverlay = document.createElement('div');
@@ -33,6 +45,93 @@ document.addEventListener('DOMContentLoaded', () => {
     let expenses = [];
     let expenseToDelete = null;
     let currentReceiptFile = null;
+    // Auth state
+    let authToken = null;
+    let currentUser = null; // { id, username }
+
+    // --- Auth Token Helpers ---
+    const saveToken = (token, user) => {
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        authToken = token;
+        currentUser = user;
+    };
+
+    const getToken = () => {
+        authToken = localStorage.getItem('authToken');
+        const userString = localStorage.getItem('currentUser');
+        currentUser = userString ? JSON.parse(userString) : null;
+        return authToken;
+    };
+
+    const clearToken = () => {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        authToken = null;
+        currentUser = null;
+    };
+
+    const isLoggedIn = () => {
+        return !!getToken(); // Check if token exists and is valid (basic check)
+    };
+
+    // --- UI Update Function ---
+    const updateUIForAuthState = () => {
+        const loggedIn = isLoggedIn();
+        console.log("Updating UI for auth state:", loggedIn);
+
+        if (loggedIn) {
+            // Show app content, hide auth forms
+            authSection.classList.add('hidden');
+            appContent.classList.remove('hidden');
+            navLogout.classList.remove('hidden');
+            // Optionally hide login/register links if they exist in nav
+        } else {
+            // Show auth forms, hide app content
+            authSection.classList.remove('hidden');
+            appContent.classList.add('hidden');
+            navLogout.classList.add('hidden');
+            // Ensure login form is shown by default when logged out
+            loginFormContainer.classList.remove('hidden');
+            registerFormContainer.classList.add('hidden');
+        }
+        // Clear expense list if logged out
+        if (!loggedIn) {
+            expenseList.innerHTML = '';
+            document.getElementById('no-expenses').classList.remove('hidden');
+            document.querySelector('.expense-table-container').classList.add('hidden');
+        }
+    };
+
+    // --- API Fetch Helper ---
+    const fetchWithAuth = async (url, options = {}) => {
+        const token = getToken();
+        const headers = { ...options.headers };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Ensure Content-Type is set for POST/PUT if body is JSON, unless it's FormData
+        if (options.body && !(options.body instanceof FormData) && typeof options.body === 'object') {
+            headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(options.body); // Stringify if it's an object
+        }
+
+        const response = await fetch(url, { ...options, headers });
+
+        // Handle token expiration or invalid token
+        if (response.status === 401 || response.status === 403) {
+            console.log('Auth error detected, logging out.');
+            clearToken();
+            updateUIForAuthState(); // Update UI to show login form
+            showToast('Session expired or invalid. Please log in again.', 'error');
+            // Throw an error to stop further processing in the calling function
+            throw new Error('Authentication required');
+        }
+
+        return response;
+    };
 
     // --- Toast Notification Functions ---
     const showToast = (message, type = 'success') => {
@@ -145,15 +244,26 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('add-expense').scrollIntoView({ behavior: 'smooth' });
     };
 
-    // --- Expense CRUD Functions ---
-    const fetchAndDisplayExpenses = async () => {
-        showLoading();
-        try {
-            const response = await fetch('/api/expenses');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+    
+        // --- Expense CRUD Functions ---
+        const fetchAndDisplayExpenses = async () => {
+            if (!isLoggedIn()) {
+                console.log("Not logged in, cannot fetch expenses.");
+                expenseList.innerHTML = ''; // Clear list if logged out
+                document.getElementById('no-expenses').classList.remove('hidden');
+                document.querySelector('.expense-table-container').classList.add('hidden');
+                // Don't show loading if not logged in
+                return;
             }
-            expenses = await response.json();
+            showLoading();
+            try {
+                // Use fetchWithAuth
+                const response = await fetchWithAuth('/api/expenses'); // Changed fetch to fetchWithAuth
+                if (!response.ok) {
+                    // fetchWithAuth handles 401/403 by throwing; catch block handles it.
+                    // Handle other non-auth errors here.
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
             expenseList.innerHTML = ''; // Clear current list
             const noExpensesDiv = document.getElementById('no-expenses');
@@ -187,15 +297,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Add a header row for the trip
                     const headerRow = document.createElement('tr');
                     headerRow.classList.add('trip-header-row');
+                    // Use a button instead of an anchor for export, add data attribute
+                    const safeFilenamePart = tripName.replace(/[^a-z0-9_\-\s]/gi, '').replace(/\s+/g, '_') || 'trip';
                     headerRow.innerHTML = `
                         <td colspan="7">
                             <span>${tripName}</span>
-                            <a href="/api/export-expenses?tripName=${encodeURIComponent(tripName)}"
-                               class="btn-small btn-secondary export-trip-button"
-                               download="${tripName.replace(/[^a-z0-9_\-\s]/gi, '').replace(/\s+/g, '_') || 'trip'}.xlsx"
-                               title="Generate Expense Sheet for ${tripName}">
+                            <button class="btn-small btn-secondary export-trip-button"
+                                    data-tripname="${encodeURIComponent(tripName)}"
+                                    data-filename="${safeFilenamePart}.xlsx"
+                                    title="Generate Expense Sheet for ${tripName}">
                                 <i class="fas fa-file-excel"></i> Generate Expense Sheet
-                            </a>
+                            </button>
                         </td>`;
                     expenseList.appendChild(headerRow);
 
@@ -268,11 +380,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const handleEditClick = async (expenseId) => { /* ... unchanged ... */
+    const handleEditClick = async (expenseId) => {
+        if (!isLoggedIn()) return; // Should not be possible if UI is correct, but safety check
         try {
             showLoading();
-            const response = await fetch(`/api/expenses/${expenseId}`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            // Use fetchWithAuth
+            const response = await fetchWithAuth(`/api/expenses/${expenseId}`);
+            if (!response.ok) {
+                // fetchWithAuth handles 401/403
+                if (response.status !== 401 && response.status !== 403) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                } else {
+                    return; // Stop processing on auth error
+                }
+            }
             const expense = await response.json();
             populateFormForEdit(expense);
         } catch (error) {
@@ -283,11 +404,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const addExpense = async (formData) => { /* ... unchanged ... */
+    const addExpense = async (formData) => {
+        if (!isLoggedIn()) return;
         try {
             showLoading();
-            const response = await fetch('/api/expenses', { method: 'POST', body: formData });
+            // Use fetchWithAuth
+            const response = await fetchWithAuth('/api/expenses', { method: 'POST', body: formData });
             if (!response.ok) {
+                 // fetchWithAuth handles 401/403
                  if (response.status === 400) {
                     const errorData = await response.json();
                     if (errorData.errors && errorData.errors.length > 0) throw new Error(`Validation Error: ${errorData.errors.map(err => err.msg).join(' ')}`);
@@ -308,11 +432,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const updateExpense = async (expenseId, formData) => { /* ... unchanged ... */
+    const updateExpense = async (expenseId, formData) => {
+        if (!isLoggedIn()) return;
         try {
             showLoading();
-            const response = await fetch(`/api/expenses/${expenseId}`, { method: 'PUT', body: formData });
+            // Use fetchWithAuth
+            const response = await fetchWithAuth(`/api/expenses/${expenseId}`, { method: 'PUT', body: formData });
              if (!response.ok) {
+                 // fetchWithAuth handles 401/403
                  if (response.status === 400) {
                     const errorData = await response.json();
                     if (errorData.errors && errorData.errors.length > 0) throw new Error(`Validation Error: ${errorData.errors.map(err => err.msg).join(' ')}`);
@@ -333,11 +460,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const deleteExpense = async (expenseId) => { /* ... unchanged ... */
+    const deleteExpense = async (expenseId) => {
+        if (!isLoggedIn()) return;
         try {
             showLoading();
-            const response = await fetch(`/api/expenses/${expenseId}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            // Use fetchWithAuth
+            const response = await fetchWithAuth(`/api/expenses/${expenseId}`, { method: 'DELETE' });
+            if (!response.ok) {
+                // fetchWithAuth handles 401/403
+                if (response.status !== 401 && response.status !== 403) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                } else {
+                    return; // Stop processing on auth error
+                }
+            }
             console.log('Expense deleted:', expenseId);
             showToast('Expense deleted successfully');
             await fetchAndDisplayExpenses();
@@ -347,6 +483,60 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             hideLoading();
             closeDeleteModal();
+        }
+    };
+
+    const handleExportClick = async (tripName, filename) => {
+        if (!isLoggedIn()) {
+            showToast('Please log in to export expenses.', 'error');
+            return;
+        }
+        console.log(`Exporting trip: ${tripName}, Filename: ${filename}`);
+        showLoadingOverlay(); // Show overlay during fetch/download prep
+
+        try {
+            const response = await fetchWithAuth(`/api/export-expenses?tripName=${encodeURIComponent(tripName)}`);
+
+            if (!response.ok) {
+                // Try to get error message from body, otherwise use status text
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorData = await response.json(); // Or response.text() if error isn't JSON
+                    errorMsg = errorData.message || errorMsg;
+                } catch (e) { /* Ignore parsing error, use status text */ }
+                throw new Error(errorMsg);
+            }
+
+            // Get the blob data (the Excel file)
+            const blob = await response.blob();
+
+            // Create a temporary URL for the blob
+            const url = window.URL.createObjectURL(blob);
+
+            // Create a temporary link element to trigger the download
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename || 'expenses.xlsx'; // Use the filename from data attribute or a default
+            document.body.appendChild(a);
+
+            // Click the link to start download
+            a.click();
+
+            // Clean up: revoke the object URL and remove the link
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+            showToast(`Exported ${filename} successfully.`);
+
+        } catch (error) {
+            console.error('Error exporting expenses:', error);
+            // Avoid showing duplicate auth errors
+            if (error.message !== 'Authentication required') {
+                showToast(`Failed to export expenses: ${error.message}`, 'error');
+            }
+        } finally {
+            hideLoadingOverlay(); // Hide overlay after download starts or on error
         }
     };
 
@@ -481,8 +671,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'claude': apiKey = settings.claudeApiKey; model = settings.claudeModel || 'claude-3-opus'; if (!apiKey) { showToast('Claude API key not found.', 'error'); hideLoadingOverlay(); hideLoading(); return; } processFormData.append('apiKey', apiKey); processFormData.append('model', model); break;
                 case 'openrouter': apiKey = settings.openrouterApiKey; model = settings.openrouterModel || 'anthropic/claude-3-opus'; if (!apiKey) { showToast('Open Router API key not found.', 'error'); hideLoadingOverlay(); hideLoading(); return; } processFormData.append('apiKey', apiKey); processFormData.append('model', model); break;
             }
-            const response = await fetch('/api/test-ocr', { method: 'POST', body: processFormData });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            // Use fetchWithAuth (even though route might not be protected yet, for consistency)
+            const response = await fetchWithAuth('/api/test-ocr', { method: 'POST', body: processFormData });
+            if (!response.ok) {
+                // fetchWithAuth handles 401/403
+                if (response.status !== 401 && response.status !== 403) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                } else {
+                    return; // Stop processing on auth error
+                }
+            }
             const result = await response.json();
             console.log('Receipt processed:', result);
             if (result.type || result.date || result.cost) {
@@ -501,9 +699,123 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Event Listeners ---
-    receiptUploadForm.addEventListener('submit', async (event) => { /* ... unchanged ... */
+    // --- Auth Handlers ---
+    const handleLogin = async (event) => {
         event.preventDefault();
+        showLoadingOverlay();
+        const formData = new FormData(loginForm);
+        const loginData = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(loginData)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+
+            saveToken(result.token, { id: result.userId, username: result.username });
+            showToast('Login successful!');
+            updateUIForAuthState();
+            fetchAndDisplayExpenses(); // Fetch expenses after login
+            loginForm.reset();
+
+        } catch (error) {
+            console.error('Login failed:', error);
+            showToast(error.message || 'Login failed. Please check username/password.', 'error');
+        } finally {
+            hideLoadingOverlay();
+        }
+    };
+
+    const handleRegister = async (event) => {
+        event.preventDefault();
+        showLoadingOverlay();
+        const formData = new FormData(registerForm);
+        const registerData = Object.fromEntries(formData.entries());
+
+        if (registerData.password.length < 6) {
+             showToast('Password must be at least 6 characters long.', 'error');
+             hideLoadingOverlay();
+             return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(registerData)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                // Handle specific validation errors from backend if available
+                if (response.status === 400 && result.errors) {
+                    const errorMessages = result.errors.map(err => err.msg).join(' ');
+                    throw new Error(errorMessages);
+                }
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+
+            showToast('Registration successful! Please log in.');
+            registerForm.reset();
+            // Switch back to login form
+            registerFormContainer.classList.add('hidden');
+            loginFormContainer.classList.remove('hidden');
+
+        } catch (error) {
+            console.error('Registration failed:', error);
+            showToast(error.message || 'Registration failed. Please try again.', 'error');
+        } finally {
+            hideLoadingOverlay();
+        }
+    };
+
+    const handleLogout = () => {
+        clearToken();
+        showToast('Logged out successfully.');
+        updateUIForAuthState();
+        // Optionally clear form fields or reset completely
+        resetForm();
+    };
+
+    // --- Event Listeners ---
+
+    // Delegated listener for export buttons within the expense list
+    expenseList.addEventListener('click', (event) => {
+        if (event.target.closest('.export-trip-button')) {
+            const button = event.target.closest('.export-trip-button');
+            const tripName = decodeURIComponent(button.dataset.tripname);
+            const filename = button.dataset.filename;
+            handleExportClick(tripName, filename);
+        }
+    });
+
+    // Auth form listeners
+    loginForm.addEventListener('submit', handleLogin);
+    registerForm.addEventListener('submit', handleRegister);
+    logoutButton.addEventListener('click', handleLogout);
+
+    showRegisterLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        loginFormContainer.classList.add('hidden');
+        registerFormContainer.classList.remove('hidden');
+    });
+
+    showLoginLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        registerFormContainer.classList.add('hidden');
+        loginFormContainer.classList.remove('hidden');
+    });
+
+    // Existing listeners
+    receiptUploadForm.addEventListener('submit', async (event) => { /* ... unchanged ... */
         const formData = new FormData(receiptUploadForm);
         const tripNameInput = document.getElementById('tripName');
         if (!tripNameInput || !tripNameInput.value.trim()) { showToast('Please enter a Trip Name', 'error'); tripNameInput.focus(); return; }
@@ -567,6 +879,13 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelDeleteButton.addEventListener('click', closeDeleteModal);
 
     // --- Initialize ---
-    resetForm();
-    fetchAndDisplayExpenses();
+    // Check login status on load
+    updateUIForAuthState();
+    if (isLoggedIn()) {
+        fetchAndDisplayExpenses(); // Fetch expenses only if logged in
+    } else {
+        resetForm(); // Reset form if not logged in
+    }
+    // resetForm(); // Reset form is now handled based on login state
+    // fetchAndDisplayExpenses(); // Fetching is now handled based on login state
 });

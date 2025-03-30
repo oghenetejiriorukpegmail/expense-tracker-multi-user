@@ -1,7 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Initial Auth Check
+    updateUIForAuthState(); // Show login or app content immediately
+
     // DOM Elements
     const settingsForm = document.getElementById('settings-form');
     const ocrMethodSelect = document.getElementById('ocr-method');
+    // Auth elements (assuming IDs match index.html)
+    const authSection = document.getElementById('auth-section');
+    const loginFormContainer = document.getElementById('login-form-container');
+    const registerFormContainer = document.getElementById('register-form-container');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const showRegisterLink = document.getElementById('show-register');
+    const showLoginLink = document.getElementById('show-login');
+    const appContent = document.getElementById('app-content');
+    const navLinks = document.getElementById('nav-links');
+    const navLogout = document.getElementById('nav-logout');
+    const logoutButton = document.getElementById('logout-button');
+    // Settings specific elements
     const aiSettings = document.getElementById('ai-settings');
     const apiKeyInput = document.getElementById('api-key');
     const saveApiKeyCheckbox = document.getElementById('save-api-key');
@@ -10,7 +26,85 @@ document.addEventListener('DOMContentLoaded', () => {
     const testResults = document.getElementById('test-results');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
-    
+
+    // Auth state
+    let authToken = null;
+    // let currentUser = null; // Already declared below
+
+    // --- Auth Token Helpers (Duplicated from script.js - consider shared file) ---
+    let currentUser = null;
+
+    // --- Auth Token Helpers (Duplicated from script.js - consider shared file) ---
+    const saveToken = (token, user) => {
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        authToken = token;
+        currentUser = user;
+    };
+
+    const getToken = () => {
+        authToken = localStorage.getItem('authToken');
+        const userString = localStorage.getItem('currentUser');
+        currentUser = userString ? JSON.parse(userString) : null;
+        return authToken;
+    };
+
+    const clearToken = () => {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        authToken = null;
+        currentUser = null;
+    };
+
+    const isLoggedIn = () => {
+        return !!getToken();
+    };
+
+    // --- UI Update Function (Duplicated from script.js - consider shared file) ---
+    const updateUIForAuthState = () => {
+        const loggedIn = isLoggedIn();
+        console.log("Settings: Updating UI for auth state:", loggedIn);
+
+        if (loggedIn) {
+            authSection.classList.add('hidden');
+            appContent.classList.remove('hidden');
+            navLogout.classList.remove('hidden');
+        } else {
+            authSection.classList.remove('hidden');
+            appContent.classList.add('hidden');
+            navLogout.classList.add('hidden');
+            loginFormContainer.classList.remove('hidden');
+            registerFormContainer.classList.add('hidden');
+        }
+    };
+
+    // --- API Fetch Helper (Duplicated from script.js - consider shared file) ---
+     const fetchWithAuth = async (url, options = {}) => {
+        const token = getToken();
+        const headers = { ...options.headers };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        if (options.body && !(options.body instanceof FormData) && typeof options.body === 'object') {
+            headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(options.body);
+        }
+
+        const response = await fetch(url, { ...options, headers });
+
+        if (response.status === 401 || response.status === 403) {
+            console.log('Auth error detected, logging out.');
+            clearToken();
+            updateUIForAuthState();
+            showToast('Session expired or invalid. Please log in again.', 'error');
+            throw new Error('Authentication required');
+        }
+
+        return response;
+    };
+
     // Load saved settings
     loadSettings();
     
@@ -18,6 +112,20 @@ document.addEventListener('DOMContentLoaded', () => {
     ocrMethodSelect.addEventListener('change', handleOcrMethodChange);
     settingsForm.addEventListener('submit', saveSettings);
     testOcrForm.addEventListener('submit', testOCR);
+    // Auth listeners
+    loginForm.addEventListener('submit', handleLogin);
+    registerForm.addEventListener('submit', handleRegister);
+    logoutButton.addEventListener('click', handleLogout);
+    showRegisterLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        loginFormContainer.classList.add('hidden');
+        registerFormContainer.classList.remove('hidden');
+    });
+    showLoginLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        registerFormContainer.classList.add('hidden');
+        loginFormContainer.classList.remove('hidden');
+    });
     
     // --- Toast Notification Functions ---
     function showToast(message, type = 'success') {
@@ -166,22 +274,30 @@ document.addEventListener('DOMContentLoaded', () => {
             OPENROUTER_API_KEY: openrouterKey,
         };
 
-        // 2. Attempt to update backend .env file
+        // 2. Attempt to update backend .env file using fetchWithAuth
         try {
-            const response = await fetch('/api/update-env', {
+            const response = await fetchWithAuth('/api/update-env', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(keysForBackend),
+                // headers: { 'Content-Type': 'application/json' }, // fetchWithAuth handles this
+                body: keysForBackend, // Pass the object directly, fetchWithAuth will stringify
             });
-            const result = await response.json();
+            // Assuming fetchWithAuth throws on 401/403, we only need to check response.ok here for other errors
+            const result = await response.json(); // Try to parse JSON even for errors
             if (!response.ok) {
-                throw new Error(result.message || 'Failed to update keys on server');
+                // Use message from JSON if available, otherwise provide a default
+                throw new Error(result.message || `Failed to update keys on server (Status: ${response.status})`);
             }
             console.log('Backend .env update response:', result.message);
             backendUpdateSuccess = true;
         } catch (error) {
+            // Handle fetchWithAuth errors (like 401/403) and other fetch errors
             console.error('Error updating .env file via API:', error);
-            showToast(`Error saving keys to server: ${error.message}`, 'error');
+            // Avoid showing duplicate toasts if fetchWithAuth already showed one
+            if (error.message !== 'Authentication required') {
+                 showToast(`Error saving keys to server: ${error.message}`, 'error');
+            }
+            // Ensure backendUpdateSuccess remains false
+            backendUpdateSuccess = false;
         }
 
         // 3. Update localStorage settings based on checkbox
@@ -225,7 +341,80 @@ document.addEventListener('DOMContentLoaded', () => {
         saveButton.disabled = false;
         saveButton.textContent = 'Save Settings';
     }
-    
+
+    // --- Auth Handlers (Duplicated from script.js - consider shared file) ---
+    const handleLogin = async (event) => {
+        event.preventDefault();
+        // showLoadingOverlay(); // Assuming no separate overlay for settings auth
+        const formData = new FormData(loginForm);
+        const loginData = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(loginData)
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+            saveToken(result.token, { id: result.userId, username: result.username });
+            showToast('Login successful!');
+            updateUIForAuthState();
+            loadSettings(); // Reload settings potentially relevant to user
+            loginForm.reset();
+        } catch (error) {
+            console.error('Login failed:', error);
+            showToast(error.message || 'Login failed.', 'error');
+        } finally {
+            // hideLoadingOverlay();
+        }
+    };
+
+    const handleRegister = async (event) => {
+        event.preventDefault();
+        // showLoadingOverlay();
+        const formData = new FormData(registerForm);
+        const registerData = Object.fromEntries(formData.entries());
+        if (registerData.password.length < 6) {
+             showToast('Password must be at least 6 characters long.', 'error');
+             // hideLoadingOverlay();
+             return;
+        }
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(registerData)
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                if (response.status === 400 && result.errors) {
+                    throw new Error(result.errors.map(err => err.msg).join(' '));
+                }
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+            showToast('Registration successful! Please log in.');
+            registerForm.reset();
+            registerFormContainer.classList.add('hidden');
+            loginFormContainer.classList.remove('hidden');
+        } catch (error) {
+            console.error('Registration failed:', error);
+            showToast(error.message || 'Registration failed.', 'error');
+        } finally {
+            // hideLoadingOverlay();
+        }
+    };
+
+    const handleLogout = () => {
+        clearToken();
+        showToast('Logged out successfully.');
+        updateUIForAuthState();
+        // Reset settings form to defaults or clear sensitive fields if needed
+        loadSettings(); // Reload settings (will likely show defaults now)
+    };
+
     // --- Test OCR Functions ---
     async function testOCR(event) {
         event.preventDefault();
@@ -270,10 +459,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('#test-ocr-form button').textContent = 'Processing...';
             document.querySelector('#test-ocr-form button').disabled = true;
             
-            // Send the receipt for processing
-            const response = await fetch('/api/test-ocr', {
+            // Send the receipt for processing using fetchWithAuth
+            const response = await fetchWithAuth('/api/test-ocr', { // Changed fetch to fetchWithAuth
                 method: 'POST',
                 body: formData
+                // No need to set Content-Type for FormData
             });
             
             // Try to parse JSON regardless of status, as error messages might be JSON

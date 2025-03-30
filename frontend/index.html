@@ -9,17 +9,56 @@
 </head>
 <body>
     <h1>Expense Tracker</h1>
-    
+
+    <!-- Auth Section -->
+    <section id="auth-section">
+        <div id="login-form-container">
+            <h2>Login</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-username">Username:</label>
+                    <input type="text" id="login-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password:</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <button type="submit" class="btn-block">Login</button>
+                <p>Don't have an account? <a href="#" id="show-register">Register here</a></p>
+            </form>
+        </div>
+
+        <div id="register-form-container" class="hidden">
+            <h2>Register</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="register-username">Username:</label>
+                    <input type="text" id="register-username" name="username" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password:</label>
+                    <input type="password" id="register-password" name="password" required minlength="6">
+                </div>
+                <button type="submit" class="btn-block">Register</button>
+                <p>Already have an account? <a href="#" id="show-login">Login here</a></p>
+            </form>
+        </div>
+    </section>
+    <!-- End Auth Section -->
+
     <nav class="main-nav">
-        <ul>
-            <li><a href="index.html" class="active"><i class="fas fa-home"></i> Home</a></li>
-            <li><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+        <ul id="nav-links">
+            <li id="nav-home"><a href="index.html" class="active"><i class="fas fa-home"></i> Home</a></li>
+            <li id="nav-settings"><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+            <li id="nav-logout" class="hidden"><a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </nav>
 
-    <section id="add-expense">
-        <h2>Add New Expense</h2>
-        <div class="info-box">
+    <!-- Main App Content (Hidden when logged out) -->
+    <div id="app-content" class="hidden">
+        <section id="add-expense">
+            <h2>Add New Expense</h2>
+            <div class="info-box">
             <p><i class="fas fa-info-circle"></i> Upload a receipt image or PDF and we'll automatically extract the expense details for you.</p>
         </div>
         
@@ -107,9 +146,10 @@
         </div>
         <div id="no-expenses" class="hidden">No expenses yet.</div>
     </section>
+    </div> <!-- End #app-content -->
     
     <!-- Removed Global Export Section -->
-
+   
     <!-- Receipt Image Modal -->
     <div id="receipt-modal" class="modal">
         <div class="modal-content">
