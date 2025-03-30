@@ -66,20 +66,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loggedIn) {
             authSection.classList.add('hidden');
             appContent.classList.remove('hidden');
-            // navLogout element doesn't exist on this page anymore
-            // document.getElementById('nav-trips')?.classList.remove('hidden'); // No nav bar
-            // document.getElementById('nav-add-expense')?.classList.remove('hidden'); // No nav bar
-            // document.getElementById('nav-settings')?.classList.remove('hidden'); // No nav bar
+            // Show relevant nav links for this page
+            document.getElementById('nav-trips')?.classList.remove('hidden');
+            document.getElementById('nav-settings')?.classList.remove('hidden');
+            document.getElementById('nav-logout')?.classList.remove('hidden');
         } else {
             authSection.classList.remove('hidden');
             appContent.classList.add('hidden');
-            // navLogout element doesn't exist on this page anymore
+            // Hide nav links
+            document.getElementById('nav-trips')?.classList.add('hidden');
+            document.getElementById('nav-settings')?.classList.add('hidden');
+            document.getElementById('nav-logout')?.classList.add('hidden');
+            // Ensure login form is shown by default when logged out
             loginFormContainer.classList.remove('hidden');
             registerFormContainer.classList.add('hidden');
-             // No nav bar to update links on
-            // document.getElementById('nav-trips')?.classList.add('hidden');
-            // document.getElementById('nav-add-expense')?.classList.add('hidden');
-            // document.getElementById('nav-settings')?.classList.add('hidden');
         }
     };
 
@@ -463,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
         registerFormContainer.classList.add('hidden');
         loginFormContainer.classList.remove('hidden');
     });
-    // Settings Listeners Removed - Moved to settings.js
     // Trip Management Listeners
     addTripButton.addEventListener('click', handleAddTrip);
     tripListUl.addEventListener('click', (event) => { // Delegated listener for delete buttons

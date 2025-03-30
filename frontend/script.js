@@ -87,23 +87,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show app content, hide auth forms
             authSection.classList.add('hidden');
             appContent.classList.remove('hidden');
-            navLogout.classList.remove('hidden');
-            // Update nav links for logged-in state
+            // Show relevant nav links
             document.getElementById('nav-trips')?.classList.remove('hidden');
             document.getElementById('nav-add-expense')?.classList.remove('hidden');
             document.getElementById('nav-settings')?.classList.remove('hidden');
+            document.getElementById('nav-logout')?.classList.remove('hidden');
         } else {
             // Show auth forms, hide app content
             authSection.classList.remove('hidden');
             appContent.classList.add('hidden');
-            navLogout.classList.add('hidden');
-            // Ensure login form is shown by default when logged out
-            loginFormContainer.classList.remove('hidden');
-            registerFormContainer.classList.add('hidden');
-            // Update nav links for logged-out state (optional: hide them?)
+            // Hide nav links
             document.getElementById('nav-trips')?.classList.add('hidden');
             document.getElementById('nav-add-expense')?.classList.add('hidden');
             document.getElementById('nav-settings')?.classList.add('hidden');
+            document.getElementById('nav-logout')?.classList.add('hidden');
+            // Ensure login form is shown by default when logged out
+            loginFormContainer.classList.remove('hidden');
+            registerFormContainer.classList.add('hidden');
         }
         // Clear expense list if logged out
         if (!loggedIn) {
@@ -201,9 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
         receiptPreview.classList.add('hidden');
         currentReceiptFile = null;
 
-        // Show receipt upload step, hide edit step
-        receiptUploadStep.classList.remove('hidden');
-        editExpenseStep.classList.add('hidden');
+        // Keep the edit step visible, just clear the fields.
+        // The cancel button will handle switching back to the upload step.
     };
 
     const showEditStep = (data = {}) => {
@@ -255,10 +254,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     
-        // --- Expense CRUD Functions ---
-        const fetchAndDisplayExpenses = async () => {
-            if (!isLoggedIn()) {
-                console.log("Not logged in, cannot fetch expenses.");
+            // --- Expense CRUD Functions ---
+            // Modified to accept tripName for filtering
+            const fetchAndDisplayExpenses = async (tripName) => {
+                if (!isLoggedIn() || !tripName) { // Also check if tripName is provided
+                    console.log("Not logged in or no trip specified, cannot fetch expenses.");
                 expenseList.innerHTML = ''; // Clear list if logged out
                 document.getElementById('no-expenses').classList.remove('hidden');
                 document.querySelector('.expense-table-container').classList.add('hidden');
@@ -267,8 +267,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             showLoading();
             try {
-                // Use fetchWithAuth
-                const response = await fetchWithAuth('/api/expenses'); // Changed fetch to fetchWithAuth
+                // Use fetchWithAuth and filter by tripName (API needs adjustment if not already filtering)
+                // Assuming API returns only expenses for the logged-in user already.
+                // We filter further by tripName on the client-side for now.
+                // TODO: Ideally, modify backend API /api/expenses to accept a tripName query parameter.
+                const response = await fetchWithAuth('/api/expenses');
                 if (!response.ok) {
                     // fetchWithAuth handles 401/403 by throwing; catch block handles it.
                     // Handle other non-auth errors here.
@@ -276,113 +279,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // *** ADDED: Parse the JSON response into the expenses variable ***
                 expenses = await response.json();
-                // Removed populateTripDropdown call - no longer needed here
+                // Filter expenses for the current trip
+                const filteredExpenses = expenses.filter(exp => exp.tripName === tripName);
    
                expenseList.innerHTML = ''; // Clear current list
-            const noExpensesDiv = document.getElementById('no-expenses');
-
-            if (expenses.length === 0) {
-                noExpensesDiv.classList.remove('hidden');
-                document.querySelector('.expense-table-container').classList.add('hidden');
-            } else {
-                noExpensesDiv.classList.add('hidden');
-                document.querySelector('.expense-table-container').classList.remove('hidden');
-
-                // Group expenses by tripName
-                const groupedExpenses = expenses.reduce((acc, expense) => {
-                    const trip = expense.tripName || 'Uncategorized';
-                    if (!acc[trip]) {
-                        acc[trip] = [];
-                    }
-                    acc[trip].push(expense);
-                    return acc;
-                }, {});
-
-                // Sort trip names (optional, Uncategorized first)
-                const sortedTripNames = Object.keys(groupedExpenses).sort((a, b) => {
-                    if (a === 'Uncategorized') return -1;
-                    if (b === 'Uncategorized') return 1;
-                    return a.localeCompare(b);
-                });
-
-                // Render grouped expenses
-                sortedTripNames.forEach(tripName => {
-                    // Add a header row for the trip
-                    const headerRow = document.createElement('tr');
-                    headerRow.classList.add('trip-header-row');
-                    // Use a button instead of an anchor for export, add data attribute
-                    const safeFilenamePart = tripName.replace(/[^a-z0-9_\-\s]/gi, '').replace(/\s+/g, '_') || 'trip';
-                    headerRow.innerHTML = `
-                        <td colspan="7">
-                            <span>${tripName}</span>
-                            <button class="btn-small btn-secondary export-trip-button"
-                                    data-tripname="${encodeURIComponent(tripName)}"
-                                    data-filename="${safeFilenamePart}.xlsx"
-                                    title="Generate Expense Sheet for ${tripName}">
-                                <i class="fas fa-file-excel"></i> Generate Expense Sheet
-                            </button>
-                        </td>`;
-                    expenseList.appendChild(headerRow);
-
-                    // Render expenses for this trip
-                    groupedExpenses[tripName].forEach(expense => {
-                        const row = document.createElement('tr');
-                        // Restore extractCity function logic
-                        const extractCity = (location) => {
-                            if (!location) return 'N/A';
-                            // Try matching "City, ST" format first
-                            const cityStateMatch = location.match(/([^,]+),\s*([A-Z]{2})/);
-                            if (cityStateMatch && cityStateMatch[1]) return cityStateMatch[1].trim();
-                            // Fallback: Split by space, return first word > 1 char if not a number
-                            const words = location.split(' ');
-                            for (const word of words) {
-                                if (isNaN(word) && word.length > 1) return word;
-                            }
-                            // Final fallback: Truncate long strings or return as is
-                            return location.length > 15 ? location.substring(0, 15) + '...' : location;
-                        };
-
-                        // --- DEBUG LOG for Date Formatting ---
-                        console.log(`Formatting date for expense ${expense.id}:`, expense.date, `(Type: ${typeof expense.date})`);
-                        const formattedDate = formatDate(expense.date);
-                        console.log(`Formatted date result:`, formattedDate);
-                        // --- END DEBUG LOG ---
-
-                        row.innerHTML = `
-                            <td>${expense.type || 'N/A'}</td>
-                            <td>${formattedDate}</td>
-                            <td>${expense.vendor || 'N/A'}</td>
-                            <td>${extractCity(expense.location)}</td>
-                            <td>$${parseFloat(expense.cost || 0).toFixed(2)}</td>
-                            <td class="receipt-cell">
-                                ${expense.receiptPath ? `
-                                    <div class="receipt-container">
-                                        <img src="${expense.receiptPath}" alt="Receipt" class="receipt-thumbnail" data-path="${expense.receiptPath}">
-                                        <a href="${expense.receiptPath}" download class="download-receipt" title="Download Receipt">
-                                            <i class="fas fa-file-arrow-down"></i>
-                                        </a>
-                                    </div>
-                                ` : '<i class="fas fa-receipt receipt-placeholder"></i>'}
-                            </td>
-                            <td>
-                                <div class="btn-group">
-                                    <button class="btn-small edit-expense" data-id="${expense.id}">Edit</button>
-                                    <button class="btn-small btn-danger delete-expense" data-id="${expense.id}">Delete</button>
-                                </div>
-                            </td>
-                        `;
-                        expenseList.appendChild(row);
-
-                        // Add event listeners
-                        const editButton = row.querySelector('.edit-expense');
-                        const deleteButton = row.querySelector('.delete-expense');
-                        const receiptThumbnail = row.querySelector('.receipt-thumbnail');
-
-                        if (editButton) editButton.addEventListener('click', () => handleEditClick(expense.id));
-                        if (deleteButton) deleteButton.addEventListener('click', () => openDeleteModal(expense.id));
-                        if (receiptThumbnail) receiptThumbnail.addEventListener('click', () => openReceiptModal(expense.receiptPath));
-                    });
-                });
+               const noExpensesDiv = document.getElementById('no-expenses');
+   
+               if (filteredExpenses.length === 0) {
+                   noExpensesDiv.textContent = `No expenses found for trip "${tripName}".`; // Update message
+                   noExpensesDiv.classList.remove('hidden');
+                   document.querySelector('.expense-table-container').classList.add('hidden');
+               } else {
+                   noExpensesDiv.classList.add('hidden');
+                   document.querySelector('.expense-table-container').classList.remove('hidden');
+   
+                   // Render only the filtered expenses (no grouping needed on this page)
+                   filteredExpenses.forEach(expense => {
+                       const row = document.createElement('tr');
+                       // Restore extractCity function logic (keep as is)
+                       const extractCity = (location) => {
+                           if (!location) return 'N/A';
+                           const cityStateMatch = location.match(/([^,]+),\s*([A-Z]{2})/);
+                           if (cityStateMatch && cityStateMatch[1]) return cityStateMatch[1].trim();
+                           const words = location.split(' ');
+                           for (const word of words) { if (isNaN(word) && word.length > 1) return word; }
+                           return location.length > 15 ? location.substring(0, 15) + '...' : location;
+                       };
+   
+                       const formattedDate = formatDate(expense.date);
+   
+                       row.innerHTML = `
+                           <td>${expense.type || 'N/A'}</td>
+                           <td>${formattedDate}</td>
+                           <td>${expense.vendor || 'N/A'}</td>
+                           <td>${extractCity(expense.location)}</td>
+                           <td>$${parseFloat(expense.cost || 0).toFixed(2)}</td>
+                           <td class="receipt-cell">
+                               ${expense.receiptPath ? `
+                                   <div class="receipt-container">
+                                       <img src="${expense.receiptPath}" alt="Receipt" class="receipt-thumbnail" data-path="${expense.receiptPath}">
+                                       <a href="${expense.receiptPath}" download class="download-receipt" title="Download Receipt">
+                                           <i class="fas fa-file-arrow-down"></i>
+                                       </a>
+                                   </div>
+                               ` : '<i class="fas fa-receipt receipt-placeholder"></i>'}
+                           </td>
+                           <td>
+                               <div class="btn-group">
+                                   <button class="btn-small edit-expense" data-id="${expense.id}">Edit</button>
+                                   <button class="btn-small btn-danger delete-expense" data-id="${expense.id}">Delete</button>
+                               </div>
+                           </td>
+                       `;
+                       expenseList.appendChild(row);
+   
+                       // Add event listeners
+                       const editButton = row.querySelector('.edit-expense');
+                       const deleteButton = row.querySelector('.delete-expense');
+                       const receiptThumbnail = row.querySelector('.receipt-thumbnail');
+   
+                       if (editButton) editButton.addEventListener('click', () => handleEditClick(expense.id));
+                       if (deleteButton) deleteButton.addEventListener('click', () => openDeleteModal(expense.id));
+                       if (receiptThumbnail) receiptThumbnail.addEventListener('click', () => openReceiptModal(expense.receiptPath));
+                   });
             }
         } catch (error) {
             console.error('Error fetching expenses:', error);
@@ -435,7 +394,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Expense added:', result);
             showToast('Expense added successfully');
             resetForm();
-            await fetchAndDisplayExpenses();
+            // Get current trip name from the input field and refresh the list for that trip
+            const currentTripName = document.getElementById('tripName').value;
+            await fetchAndDisplayExpenses(currentTripName);
         } catch (error) {
             console.error('Error adding expense:', error);
             let errorMessage = error.message.startsWith('Validation Error:') ? error.message.replace('Validation Error: ', '') : 'Failed to add expense';
@@ -463,7 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Expense updated:', result);
             showToast('Expense updated successfully');
             resetForm();
-            await fetchAndDisplayExpenses();
+            // Get current trip name from the input field and refresh the list for that trip
+            const currentTripName = document.getElementById('tripName').value;
+            await fetchAndDisplayExpenses(currentTripName);
         } catch (error) {
             console.error('Error updating expense:', error);
             let errorMessage = error.message.startsWith('Validation Error:') ? error.message.replace('Validation Error: ', '') : 'Failed to update expense';
@@ -740,9 +703,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             saveToken(result.token, { id: result.userId, username: result.username });
-            showToast('Login successful!');
-            updateUIForAuthState();
-            fetchAndDisplayExpenses(); // Fetch expenses after login
+            showToast('Login successful! Redirecting...');
+            // Redirect to trips page after successful login
+            window.location.href = 'trips.html';
+            // updateUIForAuthState(); // No longer needed immediately as page will reload
+            // fetchAndDisplayExpenses(); // No longer needed here, trips.js will handle it
             loginForm.reset();
 
         } catch (error) {
@@ -837,7 +802,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Existing listeners
-    receiptUploadForm.addEventListener('submit', async (event) => { /* ... unchanged ... */
+    receiptUploadForm.addEventListener('submit', async (event) => {
+        event.preventDefault(); // Prevent default form submission/reload
         const formData = new FormData(receiptUploadForm);
         const tripNameInput = document.getElementById('tripName');
         if (!tripNameInput || !tripNameInput.value.trim()) { showToast('Please enter a Trip Name', 'error'); tripNameInput.focus(); return; }
@@ -887,7 +853,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    cancelEditButton.addEventListener('click', resetForm);
+    cancelEditButton.addEventListener('click', () => {
+        resetForm(); // Clear the form fields
+        // Explicitly switch back to the upload step
+        receiptUploadStep.classList.remove('hidden');
+        editExpenseStep.classList.add('hidden');
+    });
 
     closeModal.addEventListener('click', closeReceiptModal);
     window.addEventListener('click', (event) => { /* ... unchanged ... */
@@ -904,34 +875,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initialize ---
     // Check login status on load
     updateUIForAuthState();
+
+    // This page REQUIRES a trip name from the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tripNameFromQuery = urlParams.get('trip');
+
     if (isLoggedIn()) {
-        fetchAndDisplayExpenses(); // Fetch expenses only if logged in
-        // Check for trip name from query parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        const tripNameFromQuery = urlParams.get('trip');
-        if (tripNameFromQuery && tripNameInput) {
-            tripNameInput.value = decodeURIComponent(tripNameFromQuery);
-            tripNameInput.readOnly = true; // Make it read-only
-            console.log(`Pre-filled Trip Name from URL: ${tripNameInput.value}`);
-
-            // Add a 'Change Trip' link/button next to the input
-            const changeTripLink = document.createElement('a');
-            changeTripLink.href = 'trips.html';
-            changeTripLink.textContent = ' (Change Trip)';
-            changeTripLink.style.marginLeft = '10px'; // Add some spacing
-            changeTripLink.title = 'Go back to select a different trip';
-            // Insert after the input field (assuming input is directly inside its parent div)
-            tripNameInput.parentNode.insertBefore(changeTripLink, tripNameInput.nextSibling);
-
-            // Optionally, focus on the receipt input or scroll smoothly
-            // document.getElementById('receipt').focus();
+        if (tripNameFromQuery) {
+            const decodedTripName = decodeURIComponent(tripNameFromQuery);
+            // Set the header
+            const headerSpan = document.querySelector('#trip-name-header span');
+            if (headerSpan) headerSpan.textContent = decodedTripName;
+            // Set the hidden input (if needed) or just use the variable
+            if (tripNameInput) {
+                tripNameInput.value = decodedTripName;
+                tripNameInput.readOnly = true; // Keep it read-only
+                // Remove the 'Change Trip' link logic if it exists from previous step
+                const existingLink = tripNameInput.parentNode.querySelector('a');
+                if (existingLink && existingLink.textContent.includes('Change Trip')) {
+                    existingLink.remove();
+                }
+            }
+            fetchAndDisplayExpenses(decodedTripName); // Fetch expenses for this specific trip
         } else {
-            // If no trip name in URL, maybe hide the expense form until a trip is selected?
-            // Or allow adding to 'Uncategorized'? For now, leave as is (requires manual entry).
-            tripNameInput.readOnly = false; // Ensure it's editable if not pre-filled
+            // If logged in but no trip specified, redirect back to trips page
+            console.warn("No trip specified in URL. Redirecting to trips page.");
+            window.location.href = 'trips.html';
+            return; // Stop further execution
         }
     } else {
-        resetForm(); // Reset form if not logged in
+        // If not logged in, the updateUIForAuthState function should show the login form.
+        // No need to resetForm here as the relevant content is hidden anyway.
     }
     // resetForm(); // Reset form is now handled based on login state
     // fetchAndDisplayExpenses(); // Fetching is now handled based on login state
