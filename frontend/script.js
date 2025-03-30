@@ -911,9 +911,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const tripNameFromQuery = urlParams.get('trip');
         if (tripNameFromQuery && tripNameInput) {
             tripNameInput.value = decodeURIComponent(tripNameFromQuery);
+            tripNameInput.readOnly = true; // Make it read-only
             console.log(`Pre-filled Trip Name from URL: ${tripNameInput.value}`);
+
+            // Add a 'Change Trip' link/button next to the input
+            const changeTripLink = document.createElement('a');
+            changeTripLink.href = 'trips.html';
+            changeTripLink.textContent = ' (Change Trip)';
+            changeTripLink.style.marginLeft = '10px'; // Add some spacing
+            changeTripLink.title = 'Go back to select a different trip';
+            // Insert after the input field (assuming input is directly inside its parent div)
+            tripNameInput.parentNode.insertBefore(changeTripLink, tripNameInput.nextSibling);
+
             // Optionally, focus on the receipt input or scroll smoothly
             // document.getElementById('receipt').focus();
+        } else {
+            // If no trip name in URL, maybe hide the expense form until a trip is selected?
+            // Or allow adding to 'Uncategorized'? For now, leave as is (requires manual entry).
+            tripNameInput.readOnly = false; // Ensure it's editable if not pre-filled
         }
     } else {
         resetForm(); // Reset form if not logged in

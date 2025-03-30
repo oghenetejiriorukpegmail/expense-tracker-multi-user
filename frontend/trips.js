@@ -197,9 +197,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(result.message || `HTTP error! status: ${response.status}`);
             }
             showToast('Trip added successfully!');
+            const newTripName = name; // Capture the name before clearing inputs
             newTripNameInput.value = '';
             newTripDescriptionInput.value = '';
-            await fetchAndDisplayTrips(); // Refresh trip list
+            // Don't just refresh list, redirect to expense page for the new trip
+            // await fetchAndDisplayTrips(); // No longer needed immediately
+            window.location.href = `index.html?trip=${encodeURIComponent(newTripName)}`;
         } catch (error) {
             console.error('Error adding trip:', error);
             showToast(error.message || 'Failed to add trip.', 'error');
