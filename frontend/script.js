@@ -906,7 +906,15 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUIForAuthState();
     if (isLoggedIn()) {
         fetchAndDisplayExpenses(); // Fetch expenses only if logged in
-        // fetchAndDisplayTrips(); // Removed - Trips are handled on trips.js
+        // Check for trip name from query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const tripNameFromQuery = urlParams.get('trip');
+        if (tripNameFromQuery && tripNameInput) {
+            tripNameInput.value = decodeURIComponent(tripNameFromQuery);
+            console.log(`Pre-filled Trip Name from URL: ${tripNameInput.value}`);
+            // Optionally, focus on the receipt input or scroll smoothly
+            // document.getElementById('receipt').focus();
+        }
     } else {
         resetForm(); // Reset form if not logged in
     }
