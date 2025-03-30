@@ -90,7 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show relevant nav links
             document.getElementById('nav-trips')?.classList.remove('hidden');
             document.getElementById('nav-add-expense')?.classList.remove('hidden');
-            document.getElementById('nav-settings')?.classList.remove('hidden');
             document.getElementById('nav-logout')?.classList.remove('hidden');
         } else {
             // Show auth forms, hide app content
@@ -99,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide nav links
             document.getElementById('nav-trips')?.classList.add('hidden');
             document.getElementById('nav-add-expense')?.classList.add('hidden');
-            document.getElementById('nav-settings')?.classList.add('hidden');
             document.getElementById('nav-logout')?.classList.add('hidden');
             // Ensure login form is shown by default when logged out
             loginFormContainer.classList.remove('hidden');
